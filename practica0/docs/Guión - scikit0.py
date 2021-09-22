@@ -5,7 +5,7 @@ Created on Wed Feb 13 19:22:16 2013
 @author: NPB
 """
 
-print __doc__
+print (__doc__)
 
 #import: realiza en python una función equivalente a los includes en C/C++
 #cualquier función que se desee usar ha debido ser importada previamente
@@ -49,7 +49,7 @@ y_ = classifier.fit(X[:half], y[:half]).predict(X[half:])
 cm = confusion_matrix(y[half:], y_)
 
 #escribimos la matriz
-print cm
+print (cm)
 
 # Show confusion matrix
 pl.matshow(cm)
