@@ -3,14 +3,14 @@
 """
 [CASTELLANO]
  
-    Practica 0
+    Practica 0: Introduccion a OpenCV
     Asignatura: Vision por Computador
     Autor: Valentino Lugli (Github: @RhinoBlindado)
     Septiembre 2021
     
 [ENGLISH]
 
-    Practice 0
+    Practice 0: Introduction to OpenCV
     Course: Computer Vision
     Author: Valentino Lugli (Github: @RhinoBlindado)
     September 2021
@@ -37,7 +37,7 @@ def Gray2Color(img):
     Parameters
     ----------
     img : Image (Numpy Array)
-        The image to convert from Grayscale.
+        The image from Grayscale.
 
     Returns
     -------
@@ -45,8 +45,6 @@ def Gray2Color(img):
         The image converted to BGR.
 
     """
-    img = ((img - np.min(img)) / (np.max(img) - np.min(img))) * 255
-
     return cv.cvtColor(np.uint8(img), cv.COLOR_GRAY2BGR)
 
 def leeImagen(filename, flagColor):
@@ -62,8 +60,8 @@ def leeImagen(filename, flagColor):
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    Image (Numpy Array)
+        The image
 
     """
     return cv.imread(filename, int(flagColor))
@@ -75,8 +73,8 @@ def pintaI(im, title=None):
 
     Parameters
     ----------
-    im : Image (Numpy Array)
-        Image to be printed to screen.
+    im : Numpy Array
+        Arbitrary number matrix to be normalized and printed.
     title : String, optional
         Title of the image. The default is None.
 
@@ -148,7 +146,9 @@ def pintaIM(vim, title=None):
             strip = cv.hconcat([strip, i])
 
     # Once it's done, print the image strip as one picture.
-    pintaI(strip, title)
+    plt.figure()
+    plt.imshow(strip[:,:,::-1])
+
 
 def cambiarColor(imagen, listaPuntos, color):
     """
@@ -206,10 +206,9 @@ def pintaIMVentana(dictIm):
         im = dictIm[element]
         # ...Add the image to the subplot, same prodecure as normal printing, ...
         if len(im.shape) == 2:
-            plt.imshow(im, cmap='gray', norm=clr.Normalize())
+            plt.imshow(im, cmap='gray')
         else:
-            imAux = (im - np.min(im)) / (np.max(im) - np.min(im))
-            plt.imshow(imAux[:,:,::-1])
+            plt.imshow(im[:,:,::-1])
         # ... Add the title...
         plt.title(element)
         # ... And update the identifier (just a counter, really).
@@ -248,14 +247,27 @@ imageLogo = leeImagen(srcLogo, True)
 ##########
 
 #   Generating random matrices with different ranges
-greyScaleMatrix = np.random.default_rng().uniform(-10.0, 220.0, (8,8))
-colorMatrix = np.random.default_rng().uniform(-10.0, 16.0, (8,8,3))
+greyScaleMatrixRand = np.random.default_rng().uniform(-10.0, 220.0, (8,8))
+colorMatrixRand = np.random.default_rng().uniform(-10.0, 16.0, (8,8,3))
 
-#   Showing the Orapples along with the matrices
-pintaI(imageOrappleGrey)
-pintaI(imageOrappleColor)
-pintaI(greyScaleMatrix)
-pintaI(colorMatrix)
+#   Generating static matrices to check if everything is working correctly.
+#   - This should be a gradient from black to gray to white.
+greyScaleMatrixStatic = np.array([[-100, -50, 0],
+                                  [0, 50, 100]])
+#   - This should be: [[black, red, blue], [green, gray, white]]
+colorMatrixStatic = np.array([[[-20, -20., -20],
+                              [-20, -20, 20],
+                              [20, -20, -20]],
+                              [[-20, 20, -20],
+                              [0, 0, 0],
+                              [20, 20, 20]]])
+
+
+#   Showing the matrices.
+pintaI(greyScaleMatrixRand)
+pintaI(greyScaleMatrixStatic)
+pintaI(colorMatrixRand)
+pintaI(colorMatrixStatic)
 
 
 # Task 3: Concatenate multiple images into one
@@ -285,15 +297,18 @@ for i in range(0, 100):
     for j in range (0, 100):
         pointVector.append(np.array([xStart+i, yStart+j])) 
     
-#   Calling the function and then printing the image.
+#   Calling the function...
 moddedImage = cambiarColor(imagen, pointVector, color)
-pintaI(moddedImage)
+
+#   ... and showing the image.
+plt.figure()
+plt.imshow(moddedImage[:,:,::-1])
 
 
 # Task 5: Show multiple images in a single window with their own titles.
 ##########
 
 #   Setting up a dictionary to be used for the generation of each image.
-imageDict = {"Dave" : imageDave, "Pecho frío" : imageMessi, "Logotipo" : imageLogo, "Orapple" : imageOrappleColor, "Ruido" : colorMatrix}
+imageDict = {"Dave" : imageDave, "Pecho frío" : imageMessi, "Logotipo" : imageLogo, "Orapple" : imageOrappleColor}
 pintaIMVentana(imageDict)
     
