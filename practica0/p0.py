@@ -241,7 +241,21 @@ imageOrappleColor = leeImagen(srcOrapple, True)
 imageDave = leeImagen(srcDave, False)
 imageMessi = leeImagen(srcMessi, False)
 imageLogo = leeImagen(srcLogo, True)
-   
+
+# Checking that images are loaded
+# - Check if the module name of the type matches with the name of the Numpy module.
+if type(imageMessi).__module__ == np.__name__:
+  print("Tipo de dato que es imageMessi: " + str(type(imageMessi)))
+  print("Forma de imageDave: " + str(imageDave.shape))
+  print("¿Qué contiene imageLogo en un rango? \n" + str(imageLogo[0:4,0:4,:]))
+
+# - Printing the Orapple, that was read as greyscale and color.
+
+plt.figure("Orapple: Grey")
+plt.imshow(imageOrappleGrey, cmap='gray')
+
+plt.figure("Orapple: Color")
+plt.imshow(imageOrappleColor[:,:,::-1])
 
 # Task 2: Visualize an arbitrary real number matrix
 ##########
