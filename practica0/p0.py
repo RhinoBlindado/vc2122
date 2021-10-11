@@ -3,17 +3,17 @@
 """
 [CASTELLANO]
  
-    Practica 0: Introduccion a OpenCV
+    Practica 1: Convolución y Derivadas
     Asignatura: Vision por Computador
     Autor: Valentino Lugli (Github: @RhinoBlindado)
-    Septiembre 2021
+    Octubre 2021
     
 [ENGLISH]
 
-    Practice 0: Introduction to OpenCV
+    Practice 0: Convolution and Derivatives
     Course: Computer Vision
     Author: Valentino Lugli (Github: @RhinoBlindado)
-    September 2021
+    October 2021
 
 """
 
