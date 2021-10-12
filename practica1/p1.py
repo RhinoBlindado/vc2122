@@ -238,6 +238,7 @@ imgMotorBike = np.float64(leeImagen("./data/motorcycle.bmp", False))
 imgChicote = np.float64(leeImagen("./extraPics/chicote.jpeg", False))
 imgBike = np.float64(leeImagen("./data/bicycle.bmp", False))
 imgCircle = np.float64(leeImagen("./extraPics/circle.png", False))
+imgPixels = np.float64(leeImagen("./extraPics/pixels.jpg",False))
 
 ## Exercise 1A: Generate gaussian blur and derivative masks.
 
@@ -250,7 +251,7 @@ def gaussianFirstD(x, sigma):
 def gaussianSecondD(x, sigma):
     return (gaussian(x, sigma) * (pow(x, 2) - pow(sigma, 2)))/(pow(sigma, 4))
 
-def genGaussMask(dx, sigma = None, maskSize = None):
+def gaussianMask(dx, sigma = None, maskSize = None):
     
     mask = None
     if((0<= dx and dx < 3) and (sigma != None or maskSize != None)):
@@ -282,7 +283,7 @@ def plotGauss(maskSize):
     y = np.arange(-k, k + 1)
     
     # Getting the masks from own functions.
-    impl = [ genGaussMask(0, None, maskSize), genGaussMask(1, None, maskSize), genGaussMask(2, None, maskSize) ]
+    impl = [ gaussianMask(0, None, maskSize), gaussianMask(1, None, maskSize), gaussianMask(2, None, maskSize) ]
     
     # Getting OpenCV kernels for the same mask size and derivatives.
     opcv = [ cv.getDerivKernels(0, 1, maskSize)[0], cv.getDerivKernels(1, 1, maskSize)[0],  cv.getDerivKernels(2, 1, maskSize)[0] ]
@@ -304,9 +305,9 @@ def plotGauss(maskSize):
 
 # print(" -Imprimiendo comparativa entre implementación y OpenCV...",end='')
 # Generating 3 masks with length 5, 7 and 9.
-gaussMask5 = genGaussMask(0, None, 5)
-gaussMask7 = genGaussMask(0, None, 7)
-gaussMask9 = genGaussMask(0, None, 9)
+gaussMask5 = gaussianMask(0, None, 5)
+gaussMask7 = gaussianMask(0, None, 7)
+gaussMask9 = gaussianMask(0, None, 9)
 
 # Generating the same three masks with OpenCV.
 
@@ -390,33 +391,77 @@ def convolveImage(img, hMask, vMask):
 def getDiff(imgA, imgB):
     return np.mean(np.abs(imgA - imgB))
 
-# Set a picture, sigma and the mask.
-oImg = imgMotorBike
-sigma = 2
-mask = genGaussMask(0, sigma)
-deriv = genGaussMask(1, sigma)
+# # Set a picture, sigma and the mask.
+# oImg = imgMotorBike
+# sigma = 2
+# mask = gaussianMask(0, sigma)
+# deriv = gaussianMask(1, sigma)
 
-# Add padding to the image original image.
-padSize = math.floor((len(mask)-1)/2)
-imgPad = addPadding(oImg, padSize, cv.BORDER_REFLECT)
+# # Add padding to the image original image.
+# padSize = math.floor((len(mask)-1)/2)
+# imgPad = addPadding(oImg, padSize, cv.BORDER_REFLECT)
 
-# Blur using own function.
-imgConv = convolveImage(imgPad, mask, mask)
+# # Blur using own function.
+# imgConv = convolveImage(imgPad, mask, mask)
 
-# Blur with OpenCV
-imgCVConv = cv.GaussianBlur(oImg, (0,0), sigma)
+# # Blur with OpenCV
+# imgCVConv = cv.GaussianBlur(oImg, (0,0), sigma)
 
-# Show the images:
-pintaI(oImg, "Imagen original")
-pintaIMVentana({"Implementación" : imgConv, "OpenCV" : imgCVConv}, "Implementación vs OpenCV")
+# # Show the images:
+# pintaI(oImg, "Imagen original")
+# pintaIMVentana({"Implementación" : imgConv, "OpenCV" : imgCVConv}, "Implementación vs OpenCV")
 
-print("La diferencia media es",getDiff(imgConv, imgCVConv))
+# print("La diferencia media es",getDiff(imgConv, imgCVConv))
 
-imgdx = convolveImage(oImg, deriv, mask)
-imgdy = convolveImage(oImg, mask, deriv)
-pintaIMVentana({"Derivada en X" : imgdx, "Derivada en Y" : imgdy}, "Derivada por Ejes")
+# imgdx = convolveImage(oImg, deriv, mask)
+# imgdy = convolveImage(oImg, mask, deriv)
+# pintaIMVentana({"Derivada en X" : imgdx, "Derivada en Y" : imgdy}, "Derivada por Ejes")
 
 # Exercise 1D
 
+def laplacian(img, sigma):
+    gauss = gaussianMask(0, sigma) 
+    gdxx = gaussianMask(2, sigma)
+    dxx = convolveImage(img, gauss, gdxx)
+    dyy = convolveImage(img, gdxx, gauss)
+    
+    L = pow(sigma, 2) * (dxx + dyy)
+    return L
+    
 
+# lapImage = imgBike
+# sigma = 0.75
+
+# lapImage = addPadding(lapImage, math.ceil(sigma) * 3, cv.BORDER_REFLECT)
+# a = cv.Laplacian(imgBike, cv.CV_64F)
+# pintaI(a)
+# b = laplacian(lapImage, sigma)
+# pintaI(b)
+
+
+# Exercise 2A
+
+def subSample(img):
+    result = img[::2, ::2]
+    return result
+
+def gaussianPyramid(img, maxLevel, sigma=1):
+    
+    mask = gaussianMask(0, 1)
+    imgList = [img]
+    
+    if (maxLevel > 0):
+        for i in range(0, maxLevel):
+            tempI = convolveImage(img, mask, mask)
+            tempI = addPadding(tempI, 3, cv.BORDER_REFLECT)
+            img = subSample(tempI)
+            imgList.append(img)
+            
+    return imgList
+            
+baseImg = imgPixels
+gaussPyrImg = addPadding(baseImg, 3, cv.BORDER_REFLECT)
+gaussPyrLst = gaussianPyramid(gaussPyrImg, 4)
+pintaIM(gaussPyrLst)
+pintaI(gaussPyrLst[3])
 
