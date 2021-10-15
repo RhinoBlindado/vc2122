@@ -50,7 +50,9 @@ def Gray2Color(img):
         The image converted to BGR.
 
     """
-    return cv.cvtColor(np.uint8(img), cv.COLOR_GRAY2BGR)
+    img = (img - np.min(img)) / (np.max(img) - np.min(img))
+    img = cv.cvtColor(np.uint8(img * 255), cv.COLOR_GRAY2BGR)
+    return img
 
 def leeImagen(filename, flagColor):
     """
@@ -69,7 +71,7 @@ def leeImagen(filename, flagColor):
         The image
 
     """
-    return cv.imread(filename, int(flagColor))
+    return np.float64(cv.imread(filename, int(flagColor)))
 
 
 def pintaI(im, title=None, norm=True):
@@ -108,7 +110,7 @@ def pintaI(im, title=None, norm=True):
         plt.imshow(imAux[:,:,::-1])
     plt.show()
 
-def pintaIM(vim, title = None, color = (255, 255, 255)):
+def pintaIM(vimIn, title = None, color = (255, 255, 255)):
     """
     Print an horizontal list of images as one single picture.
     
@@ -126,6 +128,8 @@ def pintaIM(vim, title = None, color = (255, 255, 255)):
     None.
 
     """    
+    
+    vim = vimIn.copy()
     # Getting the maximum height of the list of images.
     maxHeight = max(i.shape[0] for i in vim)
     
@@ -155,7 +159,9 @@ def pintaIM(vim, title = None, color = (255, 255, 255)):
             strip = cv.hconcat([strip, i])
 
     # Once it's done, print the image strip as one picture.
-
+    plt.figure()
+    plt.xticks([])
+    plt.yticks([])
     plt.title(title)
     plt.imshow(strip[:,:,::-1])
 
@@ -206,12 +212,14 @@ def pintaIMVentana(dictIm, title=None):
     size = len(dictIm)
     # Setting the size of the window.
     fig = plt.figure(figsize=(10,4))
-    
+
     # For each element in the dictionary...
     i = 1
     for element in dictIm:
         # ... add a subplot horizontally for each image; index 'i' is an identifier..
         fig.add_subplot(1, size, i)
+        plt.xticks([])
+        plt.yticks([])
         im = dictIm[element]
         # ...Add the image to the subplot, same prodecure as normal printing, ...
         if len(im.shape) == 2:
@@ -233,13 +241,14 @@ def pintaIMVentana(dictIm, title=None):
 ### MAIN CODE ###
 
 #   Path the test images.
-imgCat = np.float64(leeImagen("./data/cat.bmp", False))
-imgMotorBike = np.float64(leeImagen("./data/motorcycle.bmp", False))
-imgChicote = np.float64(leeImagen("./extraPics/chicote.jpeg", False))
-imgBike = np.float64(leeImagen("./data/bicycle.bmp", False))
-imgCircle = np.float64(leeImagen("./extraPics/circle.png", False))
-imgPixels = np.float64(leeImagen("./extraPics/pixels.jpg",False))
+imgCat = leeImagen("./data/cat.bmp", False)
+imgMotorBike = leeImagen("./data/motorcycle.bmp", False)
+imgChicote = leeImagen("./extraPics/chicote.jpeg", False)
+imgBike = leeImagen("./data/bicycle.bmp", False)
+imgCircle = leeImagen("./extraPics/circle.png", False)
+imgPixels = leeImagen("./extraPics/pixels.jpg",False)
 
+#%%
 ## Exercise 1A: Generate gaussian blur and derivative masks.
 
 def gaussian(x, sigma):
@@ -318,7 +327,7 @@ gaussMask9 = gaussianMask(0, None, 9)
 # plotGauss(9)
 # print("Listo")
 
-
+#%%
 #   Exercise 1B
 
 def convolve(f, g):
@@ -351,7 +360,9 @@ def convolve(f, g):
 
 
 
+#%%
 #   Exercise 1C
+
 
 def addPadding(img, sizePadding, typePadding, color=None):
 
@@ -368,77 +379,104 @@ def convolveImage(img, hMask, vMask):
     hMid = math.floor((len(hMask)-1)/2)
     vMid = math.floor((len(vMask)-1)/2)
     
-    tempImg = np.zeros([img.shape[0], img.shape[1] - (hMid * 2)])
-    convImg = np.zeros([img.shape[0] - (vMid * 2), img.shape[1] - (vMid * 2)])
-       
+    tempImg = np.array(img[:,hMid:img.shape[1] - hMid])
     
+    convImg = np.zeros([img.shape[0] - (vMid * 2), img.shape[1] - (vMid * 2)])
+
     for x in range(hMid, img.shape[0] - hMid):
        for y in range(hMid, img.shape[1] - hMid):
             val = 0
             for i in range(len(hMask)):
-                val += hMask[i] * img[x][y+hMid-i]
+                val += hMask[i] * img[x][y + hMid - i]
             tempImg[x][y-hMid] = val
-                
     for x in range(vMid, tempImg.shape[0] - vMid):
         for y in range(tempImg.shape[1]):
             val = 0
             for i in range(len(vMask)):
                 val += vMask[i] * tempImg[x + vMid - i][y]
             convImg[x-vMid][y] = val
-    
     return convImg 
 
+
+
 def getDiff(imgA, imgB):
-    return np.mean(np.abs(imgA - imgB))
+    
+    return np.mean(np.sqrt(pow(imgA - imgB, 2)))
 
-# # Set a picture, sigma and the mask.
-# oImg = imgMotorBike
-# sigma = 2
-# mask = gaussianMask(0, sigma)
-# deriv = gaussianMask(1, sigma)
 
-# # Add padding to the image original image.
-# padSize = math.floor((len(mask)-1)/2)
-# imgPad = addPadding(oImg, padSize, cv.BORDER_REFLECT)
+# Set a picture, sigma and the mask.
+oImg = imgMotorBike
+sigma = 2
+mask = gaussianMask(0, sigma)
+deriv = gaussianMask(1, sigma)
 
-# # Blur using own function.
-# imgConv = convolveImage(imgPad, mask, mask)
+# Add padding to the image original image.
+padSize = math.floor((len(mask)-1)/2)
+imgPad = addPadding(oImg, padSize, cv.BORDER_REFLECT)
 
-# # Blur with OpenCV
-# imgCVConv = cv.GaussianBlur(oImg, (0,0), sigma)
+# Blur using own function.
+imgConv = convolveImage(imgPad, mask, mask)
 
-# # Show the images:
-# pintaI(oImg, "Imagen original")
-# pintaIMVentana({"Implementación" : imgConv, "OpenCV" : imgCVConv}, "Implementación vs OpenCV")
+# Blur with OpenCV
+imgCVConv = cv.GaussianBlur(oImg, (0,0), sigma, borderType=cv.BORDER_REFLECT)
 
-# print("La diferencia media es",getDiff(imgConv, imgCVConv))
 
-# imgdx = convolveImage(oImg, deriv, mask)
-# imgdy = convolveImage(oImg, mask, deriv)
-# pintaIMVentana({"Derivada en X" : imgdx, "Derivada en Y" : imgdy}, "Derivada por Ejes")
+print("Imagen original:",oImg.shape,"Implementacion:",imgConv.shape,"OpenCV:",imgCVConv.shape)
 
+# Show the images:
+pintaI(oImg, "Imagen original")
+pintaIMVentana({"Implementación" : imgConv, "OpenCV" : imgCVConv}, "Implementación vs OpenCV")
+
+print("La diferencia media es",getDiff(imgConv, imgCVConv))
+imgdx = convolveImage(imgPad, deriv, mask)
+imgdy = convolveImage(imgPad, mask, deriv)
+pintaIMVentana({"Derivada en X" : imgdx, "Derivada en Y" : imgdy}, "Derivada por Ejes")
+
+#%%
 # Exercise 1D
+def laplacianMask(sigma = None, maskSize = None):
+    gauss = gaussianMask(0, sigma, maskSize)
+    gdxx = gaussianMask(2, sigma, maskSize)
+    
+    dxx = np.outer(gauss, gdxx)
+    dyy = np.outer(gdxx, gauss)
+    
+    if(sigma == None):
+        sigma = (maskSize - 1) / 6 
+    
+    L = pow(sigma, 2) * (dxx + dyy)
+    
+    return L
 
 def laplacian(img, sigma):
     gauss = gaussianMask(0, sigma) 
     gdxx = gaussianMask(2, sigma)
-    dxx = convolveImage(img, gauss, gdxx)
-    dyy = convolveImage(img, gdxx, gauss)
+    dxx = convolveImage(img, gdxx, gauss)
+    dyy = convolveImage(img, gauss, gdxx)
     
     L = pow(sigma, 2) * (dxx + dyy)
     return L
     
 
-# lapImage = imgBike
-# sigma = 0.75
+lapImage = imgCat
+lapSigma = 1
 
-# lapImage = addPadding(lapImage, math.ceil(sigma) * 3, cv.BORDER_REFLECT)
-# a = cv.Laplacian(imgBike, cv.CV_64F)
-# pintaI(a)
-# b = laplacian(lapImage, sigma)
-# pintaI(b)
+lapConv = addPadding(lapImage, math.ceil(lapSigma) * 3, cv.BORDER_REFLECT)
+lapResult = laplacian(lapConv, lapSigma)
+lapResultCV = cv.Laplacian(lapImage, cv.CV_64F, borderType=cv.BORDER_REFLECT)
 
 
+pintaI(lapResult, "Laplaciano: Implementación, σ=" + str(lapSigma))
+pintaI(lapResultCV, "Laplaciano: OpenCV")
+
+
+lapMask1 = laplacianMask(maskSize=3)
+lapMask3 = laplacianMask(3)
+
+print("Máscara Laplaciana, σ=1\n", lapMask1)
+
+
+#%%
 # Exercise 2A
 
 def subSample(img):
@@ -446,22 +484,92 @@ def subSample(img):
     return result
 
 def gaussianPyramid(img, maxLevel, sigma=1):
-    
-    mask = gaussianMask(0, 1)
-    imgList = [img]
-    
+        
     if (maxLevel > 0):
+        mask = gaussianMask(0, sigma)
+        imgList = [img]
+        maskSide = math.floor((len(mask)-1)/2)
+        
         for i in range(0, maxLevel):
-            tempI = convolveImage(img, mask, mask)
-            tempI = addPadding(tempI, 3, cv.BORDER_REFLECT)
+            tempI = addPadding(img, maskSide, cv.BORDER_REFLECT)
+            tempI = convolveImage(tempI, mask, mask)
             img = subSample(tempI)
             imgList.append(img)
-            
+    else:
+         imgList = None       
+         
     return imgList
-            
-baseImg = imgPixels
-gaussPyrImg = addPadding(baseImg, 3, cv.BORDER_REFLECT)
-gaussPyrLst = gaussianPyramid(gaussPyrImg, 4)
-pintaIM(gaussPyrLst)
-pintaI(gaussPyrLst[3])
 
+def gaussianPyrCV(img, maxLevel):
+    
+    imgList = [img]
+    for i in range(0, maxLevel):
+        tempI = cv.pyrDown(img, borderType=cv.BORDER_REFLECT)
+        img = tempI
+        imgList.append(img)
+        
+    return imgList
+
+baseImg = imgBike
+gaussPyrImg = addPadding(baseImg, 3, cv.BORDER_REFLECT)
+gaussPyrLst = gaussianPyramid(baseImg, 4, 1)
+
+pintaIM(gaussPyrLst, title="Implentación")
+pintaI(gaussPyrLst[-1])
+
+gaussPyrCV = gaussianPyrCV(baseImg, 4)
+pintaIM(gaussPyrCV,title="OpenCV")
+pintaI(gaussPyrCV[-1])
+
+#%%
+# Exercise 2B
+def laplacianPyramid(gaussPyr):
+    
+    gaussPyr = np.flip(gaussPyr)
+    maxLevel = len(gaussPyr)
+    imgList  = [gaussPyr[0]]
+    
+    for i in range(1, maxLevel):
+        expandedImg = cv.resize(gaussPyr[i-1], (gaussPyr[i].shape[1], gaussPyr[i].shape[0]), interpolation=cv.INTER_LINEAR)
+        tempI = gaussPyr[i] - expandedImg
+        imgList.append(tempI)
+    
+    return imgList
+    
+def laplacianPyrCV(gaussPyr):
+    gaussPyr = np.flip(gaussPyr)
+    maxLevel = len(gaussPyr)
+    imgList  = [gaussPyr[0]]
+    
+    for i in range(1, maxLevel):
+        expandedImg = cv.pyrUp(gaussPyr[i-1], dstsize=(gaussPyr[i].shape[1], gaussPyr[i].shape[0]))
+        tempI = gaussPyr[i] - expandedImg
+        imgList.append(tempI)
+    
+    return imgList
+
+lapPyrLst = laplacianPyramid(gaussPyrLst)
+lapPyrCV = laplacianPyrCV(gaussPyrCV)
+
+pintaIM(lapPyrLst)
+pintaIM(lapPyrCV)
+
+#%%
+# Exercise 2C
+
+def recoverImg(lapPyr):
+   maxLevel = len(lapPyr)
+   baseImg = lapPyr[0]
+   
+   for i in range(1, maxLevel):
+        expandedImg = cv.resize(baseImg, (lapPyr[i].shape[1], lapPyr[i].shape[0]), interpolation=cv.INTER_LINEAR)
+        baseImg = lapPyr[i] + expandedImg
+        
+   return baseImg
+   
+recoveredImg = recoverImg(lapPyrLst)
+
+pintaIMVentana({"Imagen Original" : baseImg, "Imagen Recuperada" : recoveredImg}, "Ejercicio 2C")
+
+    
+#%%
