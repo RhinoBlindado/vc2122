@@ -374,29 +374,59 @@ def addPadding(img, sizePadding, typePadding, color=None):
     return paddedImg
 
 
-def convolveImage(img, hMask, vMask):
+# def convolveImage(img, hMask, vMask):
     
-    hMid = math.floor((len(hMask)-1)/2)
-    vMid = math.floor((len(vMask)-1)/2)
+#     hMid = math.floor((len(hMask)-1)/2)
+#     vMid = math.floor((len(vMask)-1)/2)
     
-    tempImg = np.array(img[:,hMid:img.shape[1] - hMid])
+#     tempImg = np.array(img[:,hMid:img.shape[1] - hMid])
     
-    convImg = np.zeros([img.shape[0] - (vMid * 2), img.shape[1] - (vMid * 2)])
+#     convImg = np.zeros([img.shape[0] - (vMid * 2), img.shape[1] - (vMid * 2)])
 
-    for x in range(hMid, img.shape[0] - hMid):
-       for y in range(hMid, img.shape[1] - hMid):
-            val = 0
-            for i in range(len(hMask)):
-                val += hMask[i] * img[x][y + hMid - i]
-            tempImg[x][y-hMid] = val
-    for x in range(vMid, tempImg.shape[0] - vMid):
-        for y in range(tempImg.shape[1]):
-            val = 0
-            for i in range(len(vMask)):
-                val += vMask[i] * tempImg[x + vMid - i][y]
-            convImg[x-vMid][y] = val
-    return convImg 
+#     for x in range(hMid, img.shape[0] - hMid):
+#         for y in range(hMid, img.shape[1] - hMid):
+#             val = 0
+#             for i in range(len(hMask)):
+#                 val += hMask[i] * img[x][y + hMid - i]
+#             tempImg[x][y-hMid] = val
+#     for x in range(vMid, tempImg.shape[0] - vMid):
+#         for y in range(tempImg.shape[1]):
+#             val = 0
+#             for i in range(len(vMask)):
+#                 val += vMask[i] * tempImg[x + vMid - i][y]
+#             convImg[x-vMid][y] = val
+#     return convImg 
 
+
+def convolveImage(img, p_hMask, p_vMask):
+    
+    lenH = len(p_hMask)
+    lenV = len(p_vMask)
+
+    hMid = math.floor((lenH-1)/2)
+    vMid = math.floor((lenV-1)/2)
+        
+    x = img.shape[0] - hMid * 2
+    y = img.shape[1] - hMid * 2
+        
+    hMask = np.repeat(np.reshape(p_hMask, (len(p_hMask), 1)), y, 1)
+    vMask = np.repeat(np.reshape(p_vMask, (len(p_vMask), 1)), x, 1)
+
+    tempImg = np.array(img)
+    convImg = np.empty((x,y))
+    
+    for i in range(0, x):
+        tots = np.sum(img[i: i + lenH, hMid:y + hMid] * hMask, 0)
+        tempImg[i + hMid, hMid: y + hMid] = tots
+
+    tempImg = np.transpose(tempImg)
+    
+    for i in range(0, y):
+        tots = np.sum(tempImg[i: i + lenV, vMid:x + vMid] * vMask, 0)
+        convImg[:,i] = tots
+    
+    return convImg
+        
 
 
 def getDiff(imgA, imgB):
@@ -416,6 +446,7 @@ imgPad = addPadding(oImg, padSize, cv.BORDER_REFLECT)
 
 # Blur using own function.
 imgConv = convolveImage(imgPad, mask, mask)
+
 
 # Blur with OpenCV
 imgCVConv = cv.GaussianBlur(oImg, (0,0), sigma, borderType=cv.BORDER_REFLECT)
