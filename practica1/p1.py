@@ -17,7 +17,7 @@
 
 """
 
-# LIBRARIES
+# LIBRERÍAS
 
 #   Using Matplotlib to show images
 import matplotlib.pyplot as plt
@@ -34,7 +34,7 @@ import math
 
 # FUNCTIONS
 
-### AUXILIAR FUNCTIONS ###
+### FUNCIONES AUXILIARES ###
 
 def normalize(img):
     return (img - np.min(img)) / (np.max(img) - np.min(img))
@@ -152,7 +152,7 @@ def pintaIM(vimIn, title = None, color = (255, 255, 255)):
     
     # If the image doesn't have the max height, add white padding vertically.
     if(vim[0].shape[0] != maxHeight):
-        strip = cv.copyMakeBorder(vim[0], 0, maxHeight-vim[0].shape[0], 0, 0, cv.BORDER_CONSTANT, value=color)       
+        strip = cv.copyMakeBorder(vim[0], 0, maxHeight-vim[0].shape[0], 0, 0, cv.BORDER_CONSTANT, value=color)
     else:
         strip = vim[0]
     
@@ -167,9 +167,11 @@ def pintaIM(vimIn, title = None, color = (255, 255, 255)):
         
         # In adition to adding padding if needed, now concatenate horizontally the pictures.
         if(i.shape[0] != maxHeight):
-            strip = cv.hconcat([strip, cv.copyMakeBorder(i, 0, maxHeight-i.shape[0], 0, 0, cv.BORDER_CONSTANT, value=color)])       
+            strip = cv.hconcat([strip, cv.copyMakeBorder(i, 0, maxHeight-i.shape[0], 0, 0, cv.BORDER_CONSTANT, value=color)])      
+            
         else:
             strip = cv.hconcat([strip, i])
+
 
     # Once it's done, print the image strip as one picture.
     plt.figure()
@@ -252,20 +254,14 @@ def pintaIMVentana(dictIm, title=None):
     plt.show()
 
 
-### MAIN ###
+### COMIENZO EJERCICIOS ###
+# Para ejecutar cada celda, hacer Ctrl+Enter en la celda resaltada o utilizando
+# el icono justo a la derecha del icono verde de ejecución completa del código.
 
-#   Ruta para las imágenes.
-imgCat = leeImagen("./imagenes/cat.bmp", False)
-imgDog = leeImagen("./imagenes/dog.bmp", False)
+# Ejecutar esta celda primero para tener las funciones auxiliares en memoria.
+# Las celdas primero deben ejecutarse secuencialmente, luego, se pueden ejecutar en cualquier orden.
 
-imgEinstein = leeImagen("./imagenes/einstein.bmp", False)
-imgMonroe = leeImagen("./imagenes/marilyn.bmp", False)
-
-imgBird = leeImagen("./imagenes/bird.bmp", False)
-imgPlane = leeImagen("./imagenes/plane.bmp", False)
-
-imgMotorBike = leeImagen("./imagenes/motorcycle.bmp", False)
-imgBike = leeImagen("./imagenes/bicycle.bmp", False)
+# También se puede ejecutar todo el código de una, pues las funciones de dibujado no sobreescriben imágenes.
 
 #%%
 ## Ejercicio 1A
@@ -403,59 +399,20 @@ print("- Esto se puede obtener realizando la convolución nuevamente de las más
 #   Ejercicio 1C
 print("\n---Ejercicio 1C---")
 
-
-def addPadding(img, pSigma = None, pMask = None, typePadding = cv.BORDER_REFLECT, color=None):
-    """
-    Añadir padding a una imagen, dado su sigma o máscara.
-    Se asume que será el mismo valor de sigma horizontal y verticalmente.
-
-    Parameters
-    ----------
-    img : Imagen
-    pSigma : Flotante, optional
-        Sigma que uilizan las máscaras.
-    pMask : Entero, optional
-        Longitud de la máscara. Si se pasa junto a pSigma, el valor es descartado.
-    typePadding : Tipos de Padding de OpenCV, optional
-        Definir el tipo de padding. Por defecto es cv.BORDER_REFLECT.
-    color : 3-tupla de 0 a 255, optional
-        Color del borde si se utiliza cv.BORDER_CONSTANT. Por defecto está a None.
-
-    Returns
-    -------
-    paddedImg : Imagen
-        Imagen con padding añadido.
-
-    """
-    
-    # Calculando el tamaño del padding, lo que se obtiene calculando que tan grande
-    # sería el lado de una máscara, ya sea por sigma o por el tamaño general.
-    if(pSigma != None):
-        sizePadding = math.ceil(pSigma) * 3
-    else:
-        sizePadding = math.floor((pMask-1)/2)
-    
-
-    if(cv.BORDER_CONSTANT):
-        paddedImg = cv.copyMakeBorder(img, sizePadding, sizePadding, sizePadding, sizePadding, typePadding, value=color)
-    else:
-        paddedImg = cv.copyMakeBorder(img, sizePadding, sizePadding, sizePadding, sizePadding, typePadding)
-
-    return paddedImg
-
-
-def convolveImage(img, xMask, yMask):
+def convolveImage(oImg, xMask, yMask, borderType = cv.BORDER_REFLECT, color = None):
     """
     Convolucionar una imagen con dos máscaras.
 
     Parameters
     ----------
-    img : Imagen
+    oImg : Imagen
         Imagen a convolucionar
     xMask : Numpy Array
         Máscara para convolucionar horizontalmente.
     yMask : Numpy Array
         Máscara para convolucionar verticalmente.
+    borderType : OpenCV Border
+        Tipo de borde, por defecto es reflejar bordes.
 
     Returns
     -------
@@ -463,20 +420,24 @@ def convolveImage(img, xMask, yMask):
         Imagen convolucionada
 
     """
-    # Nota: Si bien no se especificó, esta función soporta máscaras de distintos tamaños.
+    # Notas: 
+    #       - Si bien no se especificó, esta función soporta máscaras de distintos tamaños.
+    #       - Como la convolución y el padding están muy relacionados, se pensó que es mejor incluir directamente el padding en la función.
+    
+    # Obtener las dimensiones de la imagen 
+    x = oImg.shape[0]
+    y = oImg.shape[1]
     
     # Obtener la longitud de las máscaras
     lenH = len(yMask)
     lenV = len(xMask)
 
-    # Obtener el punto central de las máscaras.
+    # Obtener el punto central de las máscaras, que también es tamaño de su lado.
     hMid = math.floor((lenH-1)/2)
     vMid = math.floor((lenV-1)/2)
-        
-    # Obtener las dimensiones de la imagen sin el padding, ya que la 
-    # convolución reducirá el tamaño de la imagen a como estaba sin padding.
-    x = img.shape[0] - hMid * 2
-    y = img.shape[1] - hMid * 2
+    
+    # Añadir el padding para el lado que va a ser convolucionado.
+    img = cv.copyMakeBorder(oImg, hMid, hMid, 0, 0, borderType, value=color)
     
     # Para acelerar el cálculo, se repiten las máscaras por la longitud
     # de la imagen, se utiliza reshape para poner verticales las máscaras
@@ -495,16 +456,17 @@ def convolveImage(img, xMask, yMask):
         convImg = np.empty((x,y))
         
         # Se realiza la primera convolución de manera vertical:
-        #  - Por cada fila de la imagen, se multiplica la máscara repetida por una "submatriz" de la imagen de las mismas dimensiones.
-        #  - Esta multiplicación se suma por columnas y da como resultado la convolución de esa fila.
+        #  - Por cada fila de la imagen, se multiplica la máscara repetida por una "submatriz" de la imagen de las mismas dimensiones que dicha máscara.
+        #  - Esta multiplicación se suma por columnas y da como resultado la convolución de una fila.
         #  - La imagen resultante se almacena en tempImg, se realiza un desfase en la imagen para mantener el padding de la imagen original pero reemplazando los píxeles "canonicos".
         for i in range(0, x):
-            tots = np.sum(img[i: i + lenH, hMid:y + hMid] * hMask, 0)
-            tempImg[i + hMid, hMid: y + hMid] = tots
+            tots = np.sum(img[i: i + lenH, :] * hMask, 0)
+            tempImg[i + hMid, :] = tots
     
         # Se transpone la imagen para repetir el mismo proceso en horizontal.
         tempImg = np.transpose(tempImg)
-        
+        # Se añade el padding para el otro lado, a menos que se utilize BORDER_CONSTANT, el padding estará convolucionado por ser una extensión de la imagen que ya se convolucionó por un lado.
+        tempImg = cv.copyMakeBorder(tempImg, vMid, vMid, 0, 0, borderType, value=color)
         # Segunda convolución en "horizontal".
         # Mismo procedimiento que el explicado anteriormente.
         for i in range(0, y):
@@ -523,12 +485,13 @@ def convolveImage(img, xMask, yMask):
         # Ídem a su versión en escala de grises, ahora se incluye la tercera 
         # columna de los colores.
         for i in range(0, x):
-            tots = np.sum(img[i: i + lenH, hMid:y + hMid, :] * hMask, 0)
-            tempImg[i + hMid, hMid: y + hMid, :] = tots
+            tots = np.sum(img[i: i + lenH, :, :] * hMask, 0)
+            tempImg[i + hMid, :, :] = tots
     
         # Se utiliza swapaxes para realizar la transposición del eje X e Y.
         tempImg = np.swapaxes(tempImg, 0, 1)
-        
+        tempImg = cv.copyMakeBorder(tempImg, vMid, vMid, 0, 0, borderType, value=color)
+
         # Ídem a lo anterior.
         for i in range(0, y):
             tots = np.sum(tempImg[i: i + lenV, vMid:x + vMid, :] * vMask, 0)
@@ -540,23 +503,18 @@ def convolveImage(img, xMask, yMask):
 
 def getDiff(imgA, imgB):
     """
-    Obtener el error cuadrado de dos imágenes.
-
-    Parameters
-    ----------
-    imgA : TYPE
-        DESCRIPTION.
-    imgB : TYPE
-        DESCRIPTION.
+    Obtener el error cuadrado medio de dos imágenes.
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    Flotante
+        Error cuadrado medio de dos imágenes.
 
     """
     return np.mean(np.sqrt(pow(imgA - imgB, 2)))
 
+
+imgMotorBike = leeImagen("./imagenes/motorcycle.bmp", False)
 
 # Se elige una imagen, un sigma y las máscaras.
 oImg = imgMotorBike
@@ -564,21 +522,22 @@ sigma = 2
 mask = gaussianMask(0, sigma)
 deriv = gaussianMask(1, sigma)
 
-# Se añade el padding.
-imgPad = addPadding(oImg, None, len(mask), cv.BORDER_REFLECT)
-
 # Se desenfoca con la función implementada.
-imgConv = convolveImage(imgPad, mask, mask)
+imgConv = convolveImage(oImg, mask, mask, cv.BORDER_REPLICATE)
 
 # Se compara con el desenfoque que trae OpenCV.
-imgCVConv = cv.GaussianBlur(oImg, (0,0), sigma, borderType=cv.BORDER_REFLECT)
+imgCVConv = cv.GaussianBlur(oImg, (13,13), sigma, borderType=cv.BORDER_REPLICATE)
+imgCVConv2 = cv.GaussianBlur(oImg, (0,0), sigma, borderType=cv.BORDER_REPLICATE)
 
 # Mostrando las imágenes:
 pintaI(oImg, "Imagen original")
 pintaI(imgConv, "Implementación")
 pintaI(imgCVConv, "OpenCV")
 
-print("La diferencia media es",getDiff(imgConv, imgCVConv))
+print("La diferencia media es:")
+print("Si se indica tanto sigma como el tamaño de la máscara a OpenCV:", getDiff(imgConv, imgCVConv))
+print("Si se indica solo sigma:", getDiff(imgConv, imgCVConv2))
+
 
 # Generando 3 máscaras con longitud 5, 7 y 9 con la función del ejercicio A.
 gaussMask5 = gaussianMask(0, None, 5)
@@ -590,97 +549,199 @@ gaussDeri7 = gaussianMask(1, None, 7)
 gaussDeri9 = gaussianMask(1, None, 9)
 
 # Generando imágenes de derivadas con esas máscaras:
-imgdx = convolveImage(imgPad, gaussDeri5, gaussMask5)
-imgdy = convolveImage(imgPad, gaussMask5, gaussDeri5)
+imgdx = convolveImage(oImg, gaussDeri5, gaussMask5)
+imgdy = convolveImage(oImg, gaussMask5, gaussDeri5)
 mixed = np.sqrt(pow(imgdx, 2) + pow(imgdy, 2))
-pintaIMVentana({"Derivada en X" : imgdx, "Derivada en Y" : imgdy, "Manginutd de Gradiente" : mixed}, "Derivada por Ejes, T=5")
+pintaIMVentana({"Derivada en X" : imgdx, "Derivada en Y" : imgdy}, "Derivada por Ejes, T=5")
 pintaI(mixed, "Magnitud de Gradiente")
 
-imgdx = convolveImage(imgPad, gaussDeri7, gaussMask7)
-imgdy = convolveImage(imgPad, gaussMask7, gaussDeri7)
+imgdx = convolveImage(oImg, gaussDeri7, gaussMask7)
+imgdy = convolveImage(oImg, gaussMask7, gaussDeri7)
 mixed = np.sqrt(pow(imgdx, 2) + pow(imgdy, 2))
-pintaIMVentana({"Derivada en X" : imgdx, "Derivada en Y" : imgdy, "Manginutd de Gradiente" : mixed}, "Derivada por Ejes, T=7")
+pintaIMVentana({"Derivada en X" : imgdx, "Derivada en Y" : imgdy}, "Derivada por Ejes, T=7")
 pintaI(mixed, "Magnitud de Gradiente")
 
 
-imgdy = convolveImage(imgPad, gaussMask9, gaussDeri9)
-imgdx = convolveImage(imgPad, gaussDeri9, gaussMask9)
+imgdy = convolveImage(oImg, gaussMask9, gaussDeri9)
+imgdx = convolveImage(oImg, gaussDeri9, gaussMask9)
 mixed = np.sqrt(pow(imgdx, 2) + pow(imgdy, 2))
-pintaIMVentana({"Derivada en X" : imgdx, "Derivada en Y" : imgdy, "Manginutd de Gradiente" : mixed}, "Derivada por Ejes, T=9")
+pintaIMVentana({"Derivada en X" : imgdx, "Derivada en Y" : imgdy}, "Derivada por Ejes, T=9")
+pintaI(mixed, "Magnitud de Gradiente")
 
 
 #%%
-# Exercise 1D
+# Ejercicio 1D
+
+print("\n---Ejercicio 1D---")
+
 def laplacianMask(sigma = None, maskSize = None):
+    """
+    Obtener una máscara laplaciana 2D.
+    Se debe pasar o el sigma o el maskSize.
+
+    Parameters
+    ----------
+    sigma : Flotante, optional
+        Sigma con el que generar las máscaras gaussianas.
+    maskSize : TYPE, optional
+        Tamaño de máscara con el que generar máscaras gaussianas.
+
+    Returns
+    -------
+    L : Matriz Numpy
+        Máscara Laplaciana 2D
+
+    """
+    # Obtener las máscaras: de alisamiento y de derivada segunda.
     gauss = gaussianMask(0, sigma, maskSize)
     gdxx = gaussianMask(2, sigma, maskSize)
     
+    # Realizar el producto matricial para obtener las máscaras 2D de derivada por cada eje.
     dxx = np.outer(gauss, gdxx)
     dyy = np.outer(gdxx, gauss)
+    
+    # Si se paso la longitud de máscara, obtener el sigma.
+    if(sigma == None):
+        sigma = (maskSize - 1) / 6 
+    
+    # Para normalizar se multiplica por sigma al cuadrado.
+    L = pow(sigma, 2) * (dxx + dyy)
+    
+    return L
+
+def laplacian(img, sigma = None, maskSize = None, borderType = cv.BORDER_REFLECT):
+    """
+    Obtener la Laplaciana de Gaussiana de una imagen
+
+    Parameters
+    ----------
+    img : Imagen
+    sigma : Flotante, optional
+        Sigma con el que generar las máscaras gaussianas.
+    maskSize : TYPE, optional
+        Tamaño de máscara con el que generar máscaras gaussianas.
+    borderType : Tipo de borde de OpenCV, optional
+        Borde para la convolución. Por defecto es cv.BORDER_REFLECT.
+
+    Returns
+    -------
+    L : Imagen
+        Imagen con la Laplaciana de Gaussiana aplicada.
+
+    """
+    # Obtener las máscaras
+    gauss = gaussianMask(0, sigma, maskSize)
+    gdxx = gaussianMask(2, sigma, maskSize)
+    
+    # Obtener la derivada de la imagen por X e Y
+    dxx = convolveImage(img, gdxx, gauss, borderType)
+    dyy = convolveImage(img, gauss, gdxx, borderType)
+    
+    # Normalizarlo
+    dxx = normalize(dxx)
+    dyy = normalize(dyy)
     
     if(sigma == None):
         sigma = (maskSize - 1) / 6 
     
+    # Normalizarlo en el sentido de que el zero-crossing quede en los bordes.
     L = pow(sigma, 2) * (dxx + dyy)
-    
     return L
+    
 
-def laplacian(img, sigma):
-    gauss = gaussianMask(0, sigma)
-    gdxx = gaussianMask(2, sigma)
-    dxx = convolveImage(img, gdxx, gauss)
-    dyy = convolveImage(img, gauss, gdxx)
-    
-    dxx = normalize(dxx)
-    dyy = normalize(dyy)
-    
-    L = pow(sigma, 2) * (dxx + dyy)
-    return L
-    
+def paintLapMask(lapMask, title=None):
+    """
+    Función auxiliar para imprimir la máscara gaussiana como una superifice 3D
+
+    """
+    ax = plt.axes(projection='3d')
+    plt.title(title)
+
+    (x, y) = np.meshgrid(np.arange(lapMask.shape[0]), np.arange(lapMask.shape[1]))
+
+    ax.plot_surface(x, y, lapMask, cmap=plt.cm.coolwarm)
+    plt.show()
+
+
+imgCat = leeImagen("./imagenes/cat.bmp", False)
 
 lapImage = imgCat
 lapSigma1 = 1
 lapSigma3 = 3
 
-lapConv1 = addPadding(lapImage, lapSigma1, None, cv.BORDER_REFLECT)
-lapResult1 = laplacian(lapConv1, lapSigma1)
+print("Filtrando imagen con Laplacianas...")
+lapResult1 = laplacian(lapImage, lapSigma1)
 lapResultCV1 = cv.Laplacian(lapImage, cv.CV_64F, ksize = 7, borderType=cv.BORDER_REFLECT)
+print("Listo.")
 
-
+print("Pintando imágenes...")
+pintaI(lapImage, "Imagen Original")
 pintaI(lapResult1, "Laplaciano: Implementación (σ=" + str(lapSigma1)+")")
 pintaI(lapResultCV1, "Laplaciano: OpenCV")
+print("Listo.")
 
-lapConv3 = addPadding(lapImage, lapSigma3, None, cv.BORDER_REFLECT)
-lapResult3 = laplacian(lapConv3, lapSigma3)
+
+lapResult3 = laplacian(lapImage, lapSigma3)
 lapResultCV3 = cv.Laplacian(lapImage, cv.CV_64F, ksize = 19)
 
 pintaI(lapResult3, "Laplaciano: Implementación (σ=" + str(lapSigma3)+")")
 pintaI(lapResultCV3, "Laplaciano: OpenCV")
 
+print("Generando solo máscaras Laplacianas...")
+lapMask1 = laplacianMask(lapSigma1, None)
+lapMask3 = laplacianMask(lapSigma3, None)
+print("Listo.")
 
-lapMask1 = laplacianMask(maskSize=3)
-lapMask3 = laplacianMask(3)
-
-print("Máscara Laplaciana, σ=1\n", lapMask1)
-
-
+paintLapMask(lapMask1, "Máscara Laplaciana (σ=" + str(lapSigma1)+")")
+paintLapMask(lapMask3, "Máscara Laplaciana (σ=" + str(lapSigma3)+")")
 
 #%%
-# Exercise 2A
+# Ejercicio 2A
+
+print("\n---Ejercicio 2A---")
+
 
 def subSample(img):
+    """
+    Reducir a la mitad una imagen
+
+    """
     result = img[::2, ::2]
     return result
 
-def gaussianPyramid(img, maxLevel, sigma=1):
-        
+def gaussianPyramid(img, maxLevel, sigma=1, maskSize=None, borderType=cv.BORDER_REFLECT):
+    """
+    Generar la pirámide gaussiana de una imagen.
+
+    Parameters
+    ----------
+    img : Imagen
+    maxLevel : Entero
+        Altura de la pirámide
+    sigma : Flotante, optional
+        Sigma con el que realizar el desenfoque. Por defecto es 1.
+    maskSize : Entero
+        Tamaño de máscara, usado cuando no se provee sigma. Por defecto es None.
+    borderType : Tipo de Borde de OpenCV, opcional.
+        Borde a utilizar en convolución. Por defecto es cv.BORDER_REFLECT.
+
+    Returns
+    -------
+    imgList : Lista de imágenes
+        Lista de imágenes que contiene la pirámide Gaussiana.
+
+    """        
+    # Comprobación de que se pasa un nivel mayor de 0, ¿es util? ¡Bueno...! ¡Ya lo escribí!
     if (maxLevel > 0):
-        mask = gaussianMask(0, sigma)
+        # Obtener la máscara
+        mask = gaussianMask(0, sigma, maskSize)
+        # El nivel 0 es la imagen original.
         imgList = [img]
         
+        # Resto de niveles generados convolucionando y luego achicando la imagen del nivel actual.
+        # En el caso del primer nivel es la imagen de entrada.
         for i in range(0, maxLevel):
-            tempI = addPadding(img, None, len(mask), cv.BORDER_REFLECT)
-            tempI = convolveImage(tempI, mask, mask)
+            tempI = convolveImage(img, mask, mask, borderType)
             img = subSample(tempI)
             imgList.append(img)
     else:
@@ -688,34 +749,102 @@ def gaussianPyramid(img, maxLevel, sigma=1):
          
     return imgList
 
-def gaussianPyrCV(img, maxLevel):
-    
+def gaussianPyrCV(img, maxLevel, p_borderType=cv.BORDER_REFLECT):
+    """
+    Generar pirámide Gaussiana por medio de OpenCV
+    Parameters
+    ----------
+    img : Imagen
+        Imagen a la que obtener la pirámide Gaussiana.
+    maxLevel : Entero
+        Tamaño de la pirámide
+    p_borderType : Tipo de Borde de OpenCV, opcional.
+        Borde a utilizar en convolución. Por defecto es cv.BORDER_REFLECT.
+
+    Returns
+    -------
+    imgList : Lista de imágenes
+        Lista de imágenes que contiene la pirámide Gaussiana.
+
+    """
+    # pyrDown se encarga de la mayoría de las cosas implementadas antes.
     imgList = [img]
     for i in range(0, maxLevel):
-        tempI = cv.pyrDown(img, borderType=cv.BORDER_REFLECT)
+        tempI = cv.pyrDown(img, borderType=p_borderType)
         img = tempI
         imgList.append(img)
         
     return imgList
 
+
+def gaussCompare(pyr1, pyr2):
+    """
+    Comparar la diferencia de errores cuadrados en la pirámide.
+    """
+    size = len(pyr1)
+    diff = 0
+    for i in range(1, size):
+        diff += getDiff(pyr1[i], pyr2[i])
+    diff = diff / (size-1)
+    return diff
+    
+imgBike = leeImagen("./imagenes/bicycle.bmp", False)
+
 baseImg = imgBike
+print("Generando pirámides gaussianas...")
+gaussPyr06T = gaussianPyramid(baseImg, 4, None, 5)
+gaussPyr06S = gaussianPyramid(baseImg, 4, 0.6)
+gaussPyr2 = gaussianPyramid(baseImg, 4, 2)
 gaussPyrLst = gaussianPyramid(baseImg, 4, 1)
-
-pintaIM(gaussPyrLst, title="Implentación")
-# pintaI(gaussPyrLst[-1])
-
 gaussPyrCV = gaussianPyrCV(baseImg, 4)
+print("Listo.")
+
+
+print("Pintando pirámides gaussianas...")
+pintaIM(gaussPyrLst, title="Implentación (σ=1)")
+pintaIM(gaussPyr06S, title="Implentación (σ=0.6)")
+pintaIM(gaussPyr06T, title="Implentación (T=5)")
+pintaIM(gaussPyr2, title="Implentación (σ=2)")
+print("Listo.")
+
 pintaIM(gaussPyrCV,title="OpenCV")
-# pintaI(gaussPyrCV[-1])
+
+print("Comparando diferencias entre pirámides: ")
+print("\tCV vs σ=1:",gaussCompare(gaussPyrCV, gaussPyrLst))
+print("\tCV vs σ=0.6:",gaussCompare(gaussPyrCV, gaussPyr06S))
+print("\tCV vs T=5:",gaussCompare(gaussPyrCV, gaussPyr06T))
+print("\tCV vs σ=2:",gaussCompare(gaussPyrCV, gaussPyr2))
+
 
 #%%
-# Exercise 2B
-def laplacianPyramid(gaussPyr):
-    
-    gaussPyr = np.flip(gaussPyr)
+# Ejercicio 2B
+
+print("\n---Ejercicio 2B---")
+
+def laplacianPyramid(p_gaussPyr):
+    """
+    Generar pirámide Laplaciana a partir de pirámide Gaussiana
+
+    Parameters
+    ----------
+    p_gaussPyr : Lista de imágenes
+        Vector que contiene la pirámide gaussiana.
+
+    Returns
+    -------
+    imgList : Lista de imágenes
+        Vector que contiene la pirámide laplaciana.
+
+    """
+    # Invertir el vector, por comodidad.
+    gaussPyr = p_gaussPyr[::-1]
+    # Obtener longitud.
     maxLevel = len(gaussPyr)
-    imgList  = [gaussPyr[0]]
-    
+    # Preparar vector.
+    imgList = []
+    imgList.append(gaussPyr[0])
+
+    # Por cada imagen, expandirla y restarle la imagen que le precede en la pirámide gaussiana hasta llegar al nivel 0.
     for i in range(1, maxLevel):
         expandedImg = cv.resize(gaussPyr[i-1], (gaussPyr[i].shape[1], gaussPyr[i].shape[0]), interpolation=cv.INTER_LINEAR)
         tempI = gaussPyr[i] - expandedImg
@@ -723,10 +852,11 @@ def laplacianPyramid(gaussPyr):
     
     return imgList
     
-def laplacianPyrCV(gaussPyr):
-    gaussPyr = np.flip(gaussPyr)
+def laplacianPyrCV(p_gaussPyr):
+    gaussPyr = p_gaussPyr[::-1]
     maxLevel = len(gaussPyr)
-    imgList  = [gaussPyr[0]]
+    imgList = []
+    imgList.append(gaussPyr[0])
     
     for i in range(1, maxLevel):
         expandedImg = cv.pyrUp(gaussPyr[i-1], dstsize=(gaussPyr[i].shape[1], gaussPyr[i].shape[0]))
@@ -735,44 +865,97 @@ def laplacianPyrCV(gaussPyr):
     
     return imgList
 
+print("Generando pirámides Laplacianas...")
 lapPyrLst = laplacianPyramid(gaussPyrLst)
-lapPyrCV = laplacianPyrCV(gaussPyrCV)
+lapPyrCV = laplacianPyrCV(gaussPyrLst)
+print("Listo.")
 
-pintaIM(lapPyrLst, "Pirámide Laplaciana, Implementación")
-pintaIM(lapPyrCV, "Pirámide Laplaciana, OpenCV")
+print("Pintando pirámides...")
+pintaIM(lapPyrLst, "Implementación")
+pintaIM(lapPyrCV, "OpenCV")
+print("Listo.")
+
 
 #%%
 # Exercise 2C
 print("\n---Ejercicio 2C---")
 
 def recoverImg(lapPyr):
-   maxLevel = len(lapPyr)
-   baseImg = lapPyr[0]
-   
-   for i in range(1, maxLevel):
+    """
+    Recuperar una imagen con la pirámide Laplaciana.
+
+    Parameters
+    ----------
+    lapPyr : Lista de Imágenes
+        Pirámide laplaciana como un vector de imágenes
+
+    Returns
+    -------
+    baseImg : Imagen
+        Imagen recuperada por la pirámide.
+
+    """
+    # Obtener el nivel de la pirámide.
+    maxLevel = len(lapPyr)
+    # Obtener la base
+    baseImg = lapPyr[0]
+    
+    for i in range(1, maxLevel):
+        # Expandir la imagen y sumarla con la imagen siguiente de la pirámide y repetir el proceso.
         expandedImg = cv.resize(baseImg, (lapPyr[i].shape[1], lapPyr[i].shape[0]), interpolation=cv.INTER_LINEAR)
         baseImg = lapPyr[i] + expandedImg
-        
-   return baseImg
-   
-recoveredImg = recoverImg(lapPyrLst)
+         
+    return baseImg
 
-pintaIMVentana({"Imagen Original" : baseImg, "Imagen Recuperada" : recoveredImg}, "Ejercicio 2C")
+print("Reconstruyendo Imagen...")
+recoveredImg = recoverImg(lapPyrLst)
+print("Listo.")
+
+print("Pintando comparación...")
+pintaIMVentana({"Imagen Original" : baseImg, "Imagen Recuperada" : recoveredImg}, "Reconstrucción")
+print("Listo.")
+
 print("La diferencia de la imagen original y la recuperada es", getDiff(baseImg, recoveredImg))
     
 #%%
 # Bonus 1
 
-def genHybridImg(highF, hFSigma, lowF, lFSigma):
-        
-    lowMask = gaussianMask(0, lFSigma, None)    
+print("\n---Ejercicio Bonus 1---")
 
-    highF = addPadding(highF, hFSigma, None, cv.BORDER_REFLECT)
-    lowF = addPadding(lowF, lFSigma, None, cv.BORDER_REFLECT)
+def genHybridImg(highF, hFSigma, lowF, lFSigma):
+    """
+    Generar una imagen híbrida
+
+    Parameters
+    ----------
+    highF : Imagen
+        Imagen de alta frecuencia.
+    hFSigma : Flotante
+        Sigma para la imagen de alta frecuencia.
+    lowF : Imagen
+        Imagen de baja frecuencia.
+    lFSigma : Foltante
+        Sigma para la imagen de baja frecuencia.
+
+    Returns
+    -------
+    hybrid : Imagen
+        La imagen híbrida.
+    imgDict : Diccionario de Imágenes
+        Contiene la imagenes de alta y baja frecuencia filtradas junto a la imagen híbrida.
+
+    """
+    # Se genera la máscara de la imagen de baja frecuencia con el sigma.
+    lowMask = gaussianMask(0, lFSigma, None)    
     
+    # Se genera la máscara de alta frecuencia con la Laplaciana
+    # *-1 pues invertir los colores hace que se mezcle mejor las imágenes.
     highPass = laplacian(highF, hFSigma) * -1
+    
+    # Se convoluciona para obtener la imagen desenfocada.
     lowPass = convolveImage(lowF, lowMask, lowMask)
 
+    # Se normalizan los valores para luego sumarlos correctamente.
     highPass = normalize(highPass)
     lowPass = normalize(lowPass)
     
@@ -782,24 +965,30 @@ def genHybridImg(highF, hFSigma, lowF, lFSigma):
     return hybrid, imgDict
     
 
+imgDog = leeImagen("./imagenes/dog.bmp", False)
+imgBird = leeImagen("./imagenes/bird.bmp", False)
+imgPlane = leeImagen("./imagenes/plane.bmp", False)
+
 hyb, imgD = genHybridImg(imgBike, 1.5, imgMotorBike, 9)
 imgPyr = gaussianPyramid(hyb, 4)
-pintaIMVentana(imgD)
+pintaIMVentana(imgD, "Bici-Moto")
 pintaIM(imgPyr)
 
 hyb, imgD = genHybridImg(imgBird, 1.5, imgPlane, 9)
 imgPyr = gaussianPyramid(hyb, 4)
-pintaIMVentana(imgD)
+pintaIMVentana(imgD, "Pájaro-Avión")
 pintaIM(imgPyr)
 
 hyb, imgD = genHybridImg(imgCat, 2, imgDog, 9)
 imgPyr = gaussianPyramid(hyb, 4)
-pintaIMVentana(imgD)
+pintaIMVentana(imgD, "Gato-Perro")
 pintaIM(imgPyr)
 
 
 #%%
 # Bonus 2
+
+print("\n---Ejercicio Bonus 2---")
 
 imgCatRGB = leeImagen("./imagenes/cat.bmp", True)
 imgDogRGB = leeImagen("./imagenes/dog.bmp", True)
@@ -811,37 +1000,33 @@ imgMotorBikeRGB = leeImagen("./imagenes/motorcycle.bmp", True)
 imgBikeRGB = leeImagen("./imagenes/bicycle.bmp", True)
 
 
-hyb, imgD = genHybridImg(imgBikeRGB, 1.25, imgMotorBikeRGB, 9)
+hyb, imgD = genHybridImg(imgBikeRGB, 1.5, imgMotorBikeRGB, 9)
 imgPyr = gaussianPyramid(hyb, 4)
 pintaIMVentana(imgD)
-pintaIM(imgPyr)
+pintaIM(imgPyr, "Moto-Bicicleta", (1,1,1))
 
 
 hyb, imgD = genHybridImg(imgBirdRGB, 1.5, imgPlaneRGB, 9)
 imgPyr = gaussianPyramid(hyb, 4)
 pintaIMVentana(imgD)
-pintaIM(imgPyr)
+pintaIM(imgPyr, "Pájaro-Avión", (1,1,1))
 
 
 hyb, imgD = genHybridImg(imgCatRGB, 2, imgDogRGB, 9)
 imgPyr = gaussianPyramid(hyb, 4)
 pintaIMVentana(imgD)
-pintaIM(imgPyr)
+pintaIM(imgPyr, "Gato-Perro", (1,1,1))
 
 
 #%%
 # Bonus 3
 
-imgDaVinci = leeImagen("./imagenes/davinci.jpg", True)
-imgGioconda = leeImagen("./imagenes/gioconda.jpg", True)
-
-hyb, imgD = genHybridImg(imgDaVinci, 1, imgGioconda, 9)
-imgPyr = gaussianPyramid(hyb, 4)
-pintaIM(imgPyr)
+print("\n---Ejercicio Bonus 3---")
 
 imgModelT = leeImagen("./imagenes/modelt.bmp", True)
 imgTeslaX = leeImagen("./imagenes/tesla.bmp", True)
 
-hyb, imgD = genHybridImg(imgModelT, 1, imgTeslaX, 9)
+hyb, imgD = genHybridImg(imgModelT, 2, imgTeslaX, 9)
 imgPyr = gaussianPyramid(hyb, 4)
-pintaIM(imgPyr)
+pintaIMVentana(imgD)
+pintaIM(imgPyr, "Pasado a Futuro",(1,1,1))
