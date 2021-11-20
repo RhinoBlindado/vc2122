@@ -468,9 +468,10 @@ def subSample(img):
 def wait():
     input("Pulsa una tecla para continuar")
 
-############## FIN FUNCIONES AUXILIARES ##############
+############## FIN FUNCIONES AUXILIARES
 
-############## INICIO FUNCIONES DE LA PRACTICA ACTUAL ##############
+############## FUNCIONES EJERCICIO 1
+
 def getSigmaOct(sigma0, s, ns):
     return sigma0 * math.sqrt( pow(2, (2 * s) / ns) - pow(2, 2 * (s - 1) / ns) )
 
@@ -501,18 +502,23 @@ def genOctaves(p_img, scales, sigma0, extra = 3):
 
 def isLocalExtrema(x, y, localLayer, backLayer, frontLayer): 
     
-    actVal      = np.abs(localLayer[x][y])
-    layerVal    = np.abs(localLayer[x-1:x+2, y-1:y+2]).max()
-    backVal     = np.abs(backLayer [x-1:x+2, y-1:y+2]).max()
-    frontVal    = np.abs(frontLayer[x-1:x+2, y-1:y+2]).max()
-        
-    return (actVal == max(actVal, layerVal, backVal, frontVal))
+    actVal      = localLayer[x][y]
+    layerMax    = localLayer[x-1:x+2, y-1:y+2].max()
+    backMax     = backLayer [x-1:x+2, y-1:y+2].max()
+    frontMax    = frontLayer[x-1:x+2, y-1:y+2].max()
+    
+    layerMin    = localLayer[x-1:x+2, y-1:y+2].min()
+    backMin     = backLayer [x-1:x+2, y-1:y+2].min()
+    frontMin    = frontLayer[x-1:x+2, y-1:y+2].min()
+
+    return (actVal == max(actVal, layerMax, backMax, frontMax) or 
+            actVal == min(actVal, layerMin, backMin, frontMin))
     
 def getRealSigma(k, scale, sigma_0=1.6):
     
     shift = (scale - 1) * 3
     
-    return (sigma_0 * pow(2, (shift+k)/3))
+    return (sigma_0 * pow(2, (shift + k) / 3))
 
 def realCoords(i, l):
     
@@ -525,6 +531,61 @@ def realCoords(i, l):
     
     return x
 
+
+def localQuadratic(kp, DoG):
+    
+    # Obteniendo datos del keypoint actual
+    i = kp[0] # x
+    j = kp[1] # y
+
+    # Datos de las escalas necesarias
+    act  = DoG[kp[3]][kp[2]]
+    back = DoG[kp[3]][kp[2]-1]
+    front= DoG[kp[3]][kp[2]+1]
+    
+    # Calculando la gradiente y Hessiano
+    grad = np.array([[(front[i][j] - back[i][j])  / 2],
+                     [(act[i+1][j] - act[i-1][j]) / 2],
+                     [(act[i][j+1] - act[i][j-1]) / 2]])
+    
+    hessian = np.empty((3,3))
+    hessian[0][0] = front[i][j] + back[i][j] - 2 * (act[i][j])
+    hessian[1][1] = act[i+1][j] + act[i-1][j] - 2 * (act[i][j]) 
+    hessian[2][2] = act[i][j+1] + act[i][j-1] - 2 * (act[i][j])
+    
+    hessian[0][1] = (front[i+1][j] - front[i-1][j] - back[i+1][j] + back[i-1][j]) / 4
+    hessian[0][2] = (front[i][j+1] - front[i][j+1] - back[i][j+1] + back[i][j-1]) / 4
+    hessian[1][2] = (act[i+1][j+1] - act[i+1][j-1] - act[i-1][j+1] + act[i-1][j-1]) / 4
+    
+    hessian[1][0] = hessian[0][1]
+    hessian[2][0] = hessian[0][2]
+    hessian[2][1] = hessian[1][2]
+
+    alphaStar = -(np.linalg.inv(hessian)).dot(grad)
+    omega = kp[4] - 0.5 * np.transpose(grad).dot((np.linalg.inv(hessian)).dot(grad))
+    
+    return alphaStar, omega
+    
+def extremaInterpolation(keyLst, DoG):
+    kpInter = []
+    for i in range(0, len(keyLst)):
+        actKp = keyLst[i]
+        counter = 0
+        while True:
+            alphaStar, omega = localQuadratic(actKp, DoG)
+            
+            i[0] = round(i[0] + alphaStar[1])
+            i[1] = round(i[1] + alphaStar[2])
+            i[5] = round(i[5] + alphaStar[0])
+            
+            if(max(np.abs(alphaStar) < 0.6 or counter > 4)):
+                break
+        if(max(np.abs(alphaStar)) < 0.6):
+            kpInter.append(i[0], i[1], i[2], i[3], i[4], i[5])
+    
+    return kpInter
+    
+
 def getExtrema(DoG):
     
     keyPLst = []
@@ -535,13 +596,18 @@ def getExtrema(DoG):
             for i in range(1, octave[k].shape[0] - 1):
                 for j in range(1, octave[k].shape[1] - 1):
                     if(isLocalExtrema(i , j, octave[k], octave[k-1], octave[k+1])):
-                        keyPLst.append((np.abs(octave[k][i][j]), i, j, l, getRealSigma(k, l)))
+                        #               0, 1, 2     , 3     , 4        , 5
+                        #               x, y, escala, octava, respuesta, sigma real
+                        keyPLst.append((i, j, k, l, np.abs(octave[k][i][j]), getRealSigma(k, l), k))
 
-    keyPLst.sort(key=lambda tup: tup[0], reverse=True)
-    keyBest = keyPLst[0:250]
+    keyPLst.sort(key=lambda tup: tup[4], reverse=True)
+    keyBest = keyPLst[0:100]
     
     for i in keyBest:
-        keyCV.append(cv.KeyPoint(realCoords(i[2], i[3]), realCoords(i[1], i[3]), round(i[4]) * 12, response=i[0], octave=i[3]))
+        keyCV.append(cv.KeyPoint(realCoords(i[1], i[3]), realCoords(i[0], i[3]), i[5] * 12))
+    
+    
+    
     
     return keyBest, keyCV, keyPLst
     
@@ -562,16 +628,31 @@ def siftDetector(p_img, numOctaves, numScales, sigma0):
     
     return siftPyr, siftDoG
 
+
+def showOctaves(gPyr):
+    """
+    Función auxiliar para pintar por pantalla las escalas 1, 2 y 3 de cada octava.
+    """        
+    pintaIM(gPyr[0][1:4], "Octava 0, Escala 1, 2 y 3")
+    pintaIM(gPyr[1][1:4], "Octava 1, Escala 1, 2 y 3")
+    pintaIM(gPyr[2][1:4], "Octava 2, Escala 1, 2 y 3")
+    pintaIM(gPyr[3][1:4], "Octava 3, Escala 1, 2 y 3")
+    
+    
+############## FIN FUNCIONES EJERCICIO 1
+
 #%%
 yose1 = leeImagen("./imagenes/Yosemite1.jpg", False)
 yose1 = yose1.astype(np.uint8)
 
 gaussPyr, DoGPyr = siftDetector(yose1, 3, 3, 1.6)
 
+showOctaves(gaussPyr)
+
 keyPoints, kpCV, kpAll = getExtrema(DoGPyr)
 
 yoseOut = cv.drawKeypoints(yose1, kpCV, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-pintaI(yoseOut)
+pintaI(yoseOut, "100 keypoints con respuesta más alta")
 #%%
 
 def getKeyPoints_BF(img1, img2):
@@ -618,80 +699,74 @@ def getKeyPoints_Lowe2NN(img1, img2, p_k=2):
             
     return bfLoweBest, img1K, img2K
 
-def ejercicio2():
+# def ejercicio2():
     #  "Con cada dos de las imágenes de Yosemite con solapamiento detectar y  
     #   extraer los descriptores SIFT de OpenCV, usando para ello la función 
     #   cv2.detectAndCompute()..."
     
-    yose1 = leeImagen("./imagenes/Yosemite1.jpg", False).astype('uint8')
-    yose2 = leeImagen("./imagenes/Yosemite2.jpg", False).astype('uint8')
-    
-    bfCrossRes, yose1Keys, yose2Keys = getKeyPoints_BF(yose1, yose2)
-    bfLoweBest, a, b = getKeyPoints_Lowe2NN(yose1, yose2)    
-    
-    #   "... mostrar ambas imágenes en un mismo canvas y pintar líneas de diferentes 
-    #   colores entre las coordenadas de los puntos en correspondencias. Mostrar 
-    #   en cada caso un máximo de 100 elegidas aleatoriamente."
-    
-    # Obtener 100 puntos aleatorios (o si hay menos de 100 solo esos puntos)
-    crossPoints = random.sample(bfCrossRes, min(100, len(bfCrossRes)))
-    lowePoints = random.sample(bfLoweBest, min(100, len(bfLoweBest)))
-    
-    # Obteniendo las líneas de colores entre cada imagen dado los keypoints y descriptores.
-    bfCrossRes = cv.drawMatches(yose1, yose1Keys, yose2, yose2Keys, crossPoints, None,flags=2)
-    bfLoweRes = cv.drawMatchesKnn(yose1, yose1Keys, yose2 , yose2Keys, lowePoints, None,flags=2)
-    
-    # Pintar las imágenes.
-    pintaI(bfCrossRes, "SIFT: Bruteforce + CrossCheck")
-    pintaI(bfLoweRes, "SIFT: Lowe-Average-2NN")
+yose1 = leeImagen("./imagenes/Yosemite1.jpg", False).astype('uint8')
+yose2 = leeImagen("./imagenes/Yosemite2.jpg", False).astype('uint8')
 
+bfCrossRes, yose1Keys, yose2Keys = getKeyPoints_BF(yose1, yose2)
+bfLoweBest, a, b = getKeyPoints_Lowe2NN(yose1, yose2)    
 
-def ejercicio3():
-    
-    left = leeImagen("./imagenes/IMG_20211030_110413_S.jpg", True)
-    center = leeImagen("./imagenes/IMG_20211030_110415_S.jpg", True)
-    right = leeImagen("./imagenes/IMG_20211030_110417_S.jpg", True)
-    
-    right = right.astype(np.uint8)
-    center = center.astype(np.uint8)
-    left = left.astype(np.uint8)
-    
-    leftCenter, k1, k2 = getKeyPoints_Lowe2NN(left, center)
-    
-    src_pts = np.float32([ k1[m[0].queryIdx].pt for m in leftCenter ]).reshape(-1,1,2)
-    dst_pts = np.float32([ k2[m[0].trainIdx].pt for m in leftCenter ]).reshape(-1,1,2)
-    
-    canvas = np.zeros((500, 800))
-    baseHom = np.array([[1, 0, canvas.shape[1]/2 - center.shape[1]/2],
-                     [0, 1, canvas.shape[0]/2 - center.shape[0]/2],
-                     [0, 0, 1]],
-                    dtype=np.float64)
-    
-    # canvas = cv.warpPerspective(center, baseHom, (canvas.shape[1], canvas.shape[0]), dst=canvas, borderMode=cv.BORDER_TRANSPARENT)
-    
-    homM, mask = cv.findHomography(src_pts, dst_pts, cv.RANSAC, 1)
-    
-    centerRight, kl1, kl2 = getKeyPoints_Lowe2NN(right, center)
-    
-    src_pts = np.float32([ kl1[m[0].queryIdx].pt for m in centerRight ]).reshape(-1,1,2)
-    dst_pts = np.float32([ kl2[m[0].trainIdx].pt for m in centerRight ]).reshape(-1,1,2)
-    
-    homL, mask = cv.findHomography(src_pts, dst_pts, cv.RANSAC, 1)
-    
-    
-    canvas = cv.warpPerspective(right, baseHom.dot(homL), (canvas.shape[1], canvas.shape[0]), dst=canvas) 
-    canvas = cv.warpPerspective(left, baseHom.dot(homM), (canvas.shape[1], canvas.shape[0]), dst=canvas, borderMode=cv.BORDER_TRANSPARENT) 
-    canvas = cv.warpPerspective(center, baseHom, (canvas.shape[1], canvas.shape[0]), dst=canvas, borderMode=cv.BORDER_TRANSPARENT)
-    pintaI(canvas)
+#   "... mostrar ambas imágenes en un mismo canvas y pintar líneas de diferentes 
+#   colores entre las coordenadas de los puntos en correspondencias. Mostrar 
+#   en cada caso un máximo de 100 elegidas aleatoriamente."
 
+# Obtener 100 puntos aleatorios (o si hay menos de 100 solo esos puntos)
+crossPoints = random.sample(bfCrossRes, min(100, len(bfCrossRes)))
+lowePoints = random.sample(bfLoweBest, min(100, len(bfLoweBest)))
+
+# Obteniendo las líneas de colores entre cada imagen dado los keypoints y descriptores.
+bfCrossRes = cv.drawMatches(yose1, yose1Keys, yose2, yose2Keys, crossPoints, None,flags=2)
+bfLoweRes = cv.drawMatchesKnn(yose1, yose1Keys, yose2 , yose2Keys, lowePoints, None,flags=2)
+
+# Pintar las imágenes.
+pintaI(bfCrossRes, "SIFT: Bruteforce + CrossCheck")
+pintaI(bfLoweRes, "SIFT: Lowe-Average-2NN")
 
 #%%
-print("Ejercicio 1: ")
-ejercicio1()
-#%%
-print("Ejercicio 2: ")
-ejercicio2()
-#%%
-print("Ejercicio 3: ")
-ejercicio3()
+# def ejercicio3():
+    
+left = leeImagen("./imagenes/IMG_20211030_110413_S.jpg", True)
+center = leeImagen("./imagenes/IMG_20211030_110415_S.jpg", True)
+right = leeImagen("./imagenes/IMG_20211030_110417_S.jpg", True)
+
+right = right.astype(np.uint8)
+center = center.astype(np.uint8)
+left = left.astype(np.uint8)
+
+leftCenter, k1, k2 = getKeyPoints_Lowe2NN(left, center)
+centerRight, kl1, kl2 = getKeyPoints_Lowe2NN(right, center)
+
+srcLeft = np.float32([ k1[m[0].queryIdx].pt for m in leftCenter ]).reshape(-1,1,2)
+dstLeft = np.float32([ k2[m[0].trainIdx].pt for m in leftCenter ]).reshape(-1,1,2)
+
+srcRight = np.float32([ kl1[m[0].queryIdx].pt for m in centerRight ]).reshape(-1,1,2)
+dstRight = np.float32([ kl2[m[0].trainIdx].pt for m in centerRight ]).reshape(-1,1,2)
+
+hLC, mask = cv.findHomography(srcLeft, dstLeft, cv.RANSAC, 1)
+hRC, mask = cv.findHomography(srcRight, dstRight, cv.RANSAC, 1)
+
+canvas = np.zeros((500, 800))
+baseHom = np.array([[1, 0, canvas.shape[1]/2 - center.shape[1]/2],
+                    [0, 1, canvas.shape[0]/2 - center.shape[0]/2],
+                    [0, 0, 1]],
+                   dtype=np.float64)
+
+canvas = cv.warpPerspective(right, baseHom.dot(hRC), (canvas.shape[1], canvas.shape[0]), dst=canvas) 
+canvas = cv.warpPerspective(left, baseHom.dot(hLC), (canvas.shape[1], canvas.shape[0]), dst=canvas, borderMode=cv.BORDER_TRANSPARENT) 
+canvas = cv.warpPerspective(center, baseHom, (canvas.shape[1], canvas.shape[0]), dst=canvas, borderMode=cv.BORDER_TRANSPARENT)
+pintaI(cv.canvas)
+
+# #%%
+# print("Ejercicio 1: ")
+# ejercicio1()
+# #%%
+# print("Ejercicio 2: ")
+# ejercicio2()
+# #%%
+# print("Ejercicio 3: ")
+# ejercicio3()
 
