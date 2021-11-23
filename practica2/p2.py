@@ -470,28 +470,29 @@ def wait():
 
 ############### FIN FUNCIONES AUXILIARES
 
+############################## FUNCIONES PARA EJERCICIOS 
+
 ############### FUNCIONES EJERCICIO 1
 
 def getSigmaOct(sigma0, s, ns):
     return sigma0 * math.sqrt( pow(2, (2 * s) / ns) - pow(2, 2 * (s - 1) / ns) )
 
-def genOctaves(p_img, scales, sigma0, extra = 3):
+def genOctave(p_img, scales, sigma0, extra = 3):
     
     octaves = []
     diffOfGauss = []
     
-    actSigma = sigma0
     actImg = p_img
     octNum = scales + extra
     
     octaves.append(actImg)
     
     for i in range(1, octNum):
+        actSigma = getSigmaOct(sigma0, i, scales)
         mask  = gaussianMask(0, actSigma, None)
         octav = convolveImage(actImg, mask, mask)
         
         octaves.append(octav)
-        actSigma = getSigmaOct(sigma0, i, scales)
 
         diffOfGauss.append(actImg - octav)
         
@@ -514,20 +515,28 @@ def isLocalExtrema(x, y, localLayer, backLayer, frontLayer):
     return (actVal == max(actVal, layerMax, backMax, frontMax) or 
             actVal == min(actVal, layerMin, backMin, frontMin))
     
-def getRealSigma(k, scale, sigma_0=1.6):
+def getRealSigma(k, octave, sigma_0=1.6):
     
-    shift = (scale - 1) * 3
+    shift = (octave - 1) * 3
     
     return (sigma_0 * pow(2, (shift + k) / 3))
 
-def realCoords(i, l):
+def realCoords(i, l, rounding=True):
     
-    if(l > 1):
-        x = round (i * 2 * (l-1))
-    elif(l == 1):
-        x = i
+    if(rounding):
+        if(l > 1):
+            x = round (i * 2 * (l-1))
+        elif(l == 1):
+            x = i
+        else:
+            x = round( i / 2 )
     else:
-        x = round( i / 2 )
+        if(l > 1):
+            x = (i * 2 * (l-1))
+        elif(l == 1):
+            x = i
+        else:
+            x = ( i / 2 )
     
     return x
 
@@ -566,7 +575,7 @@ def siftDetector(p_img, numOctaves, numScales, sigma0):
     siftDoG = []
     # Generando piramide
     for i in range(0, numOctaves + 1):
-        octave, DoG = genOctaves(img, numScales, sigma0)
+        octave, DoG = genOctave(img, numScales, sigma0)
         
         img = subSample(octave[numScales])
         siftPyr.append(octave)
@@ -593,18 +602,24 @@ def getBestPercentage(keyPoints):
     
     sizes = [50, 25, 15, 10]
     keyPerBest = []
+    keyCV = []
     
     for i in range(len(keyPoints)):
             keyPoints[i].sort(key=lambda tup: tup[4], reverse=True)
             keyPerBest.append(keyPoints[i][0:sizes[i]])
 
-    return keyPerBest
-############### FIN FUNCIONES BONUS 1-2
+
+    for i in range(len(keyPerBest)):
+        for j in range(len(keyPerBest[i])):
+                keyCV.append(cv.KeyPoint(realCoords(keyPerBest[i][j][1], keyPerBest[i][j][3]), realCoords(keyPerBest[i][j][0], keyPerBest[i][j][3]), keyPerBest[i][j][5] * 12))
 
 
+    return keyPerBest, keyCV
 
+############### FIN FUNCIONES BONUS 1-1
 
 ############### FUNCIONES BONUS 1-2
+
 def localQuadratic(kp, DoG):
     
     # Obteniendo datos del keypoint actual
@@ -644,22 +659,33 @@ def extremaInterpolation(keyLst, DoG):
     kpInterCV = []
     for i in range(0, len(keyLst)):
         actKp = np.asarray(keyLst[i])
+        realValue = np.empty((3,))
         counter = 0
         while True:
             alphaStar, omega = localQuadratic(actKp, DoG)
             
-            actKp[0] = np.round(actKp[0] + alphaStar[1])
-            actKp[1] = np.round(actKp[1] + alphaStar[2])
-            actKp[5] = actKp[5] + alphaStar[0]
-            
-            if(max(np.abs(alphaStar)) < 0.6 or counter > 4):
+            # Sigma
+            realValue[0] = getRealSigma(actKp[2] + alphaStar[0][0], actKp[3])
+            # x
+            realValue[1] = realCoords(actKp[0] + alphaStar[1][0], actKp[3], False)
+            # y
+            realValue[2] = realCoords(actKp[1] + alphaStar[2][0], actKp[3], False)
+                        
+            # x
+            actKp[0] = np.round(actKp[0] + alphaStar[1][0])
+            # y
+            actKp[1] = np.round(actKp[1] + alphaStar[2][0])
+            # s
+            actKp[2] = np.round(actKp[2] + alphaStar[0][0])
+
+            if(max(np.abs(alphaStar)) < 0.6 or counter < 5):
                 break
 
             counter += 1
             
         if(max(np.abs(alphaStar)) < 0.6):
-            kpInter.append((int(actKp[0]), int(actKp[1]), int(actKp[2]), int(actKp[3]), omega[0][0], actKp[5]))
-            kpInterCV.append(cv.KeyPoint(realCoords(int(actKp[1]), int(actKp[3])), realCoords(int(actKp[0]), int(actKp[3])), actKp[5] * 12))
+            kpInter.append((int(actKp[0]), int(actKp[1]), int(actKp[2]), int(actKp[3]), omega[0][0], realValue[0]))
+            kpInterCV.append(cv.KeyPoint(realValue[2], realValue[1], realValue[0] * 12))
     
     return kpInter, kpInterCV
 ############### FIN FUNCIONES BONUS 1-2
@@ -670,10 +696,10 @@ def getKeyPoints_BF(img1, img2):
     sift = cv.SIFT_create()
     
     # Objeto para hacer BruteForce + CrossCheck; para eso se habilita con true en el
-    # segundo parámetro y normalización L1 que se recomienda para SIFT.
-    bfCross = cv.BFMatcher_create(cv.NORM_L1, True)
+    # segundo parámetro y normalización L2 que se recomienda para SIFT.
+    bfCross = cv.BFMatcher_create(cv.NORM_L2, True)
 
-    # Obteniendo caracterisitcas: keypoints y descriptores en un solo paso.
+    # Obteniendo caracteristicas: keypoints y descriptores en un solo paso.
     #   - Las imágenes tienen que convertirse a uint8, es lo que acepta OpenCV,
     #     sino se queja.
     
@@ -690,9 +716,9 @@ def getKeyPoints_Lowe2NN(img1, img2, p_k=2):
     sift = cv.SIFT_create()
     
     # Objeto para hacer Promedio de Lowe-2nn, sin CrossCheck (por defecto)
-    bfLowe2nn = cv.BFMatcher_create(cv.NORM_L1)
+    bfLowe2nn = cv.BFMatcher_create(cv.NORM_L2)
 
-    # Obteniendo caracterisitcas: keypoints y descriptores en un solo paso.
+    # Obteniendo caracteristicas: keypoints y descriptores en un solo paso.
     #   - Las imágenes tienen que convertirse a uint8, es lo que acepta OpenCV,
     #     sino se queja.
     
@@ -706,7 +732,7 @@ def getKeyPoints_Lowe2NN(img1, img2, p_k=2):
     # Se descartan los puntos ambiguos según el criterio de Lowe
     for i, j in loweMatch:
         if i.distance < 0.8*j.distance:
-            bfLoweBest.append(i)
+            bfLoweBest.append([i])
             
     return bfLoweBest, img1K, img2K
 
@@ -718,11 +744,11 @@ def genSimplePanorama(center, left, right, canvas):
     leftCenter, k1, k2 = getKeyPoints_Lowe2NN(left, center)
     centerRight, kl1, kl2 = getKeyPoints_Lowe2NN(right, center)
 
-    srcLeft = np.float32([ k1[m.queryIdx].pt for m in leftCenter ]).reshape(-1,1,2)
-    dstLeft = np.float32([ k2[m.trainIdx].pt for m in leftCenter ]).reshape(-1,1,2)
+    srcLeft = np.float32([ k1[m[0].queryIdx].pt for m in leftCenter ]).reshape(-1,1,2)
+    dstLeft = np.float32([ k2[m[0].trainIdx].pt for m in leftCenter ]).reshape(-1,1,2)
     
-    srcRight = np.float32([ kl1[m.queryIdx].pt for m in centerRight ]).reshape(-1,1,2)
-    dstRight = np.float32([ kl2[m.trainIdx].pt for m in centerRight ]).reshape(-1,1,2)
+    srcRight = np.float32([ kl1[m[0].queryIdx].pt for m in centerRight ]).reshape(-1,1,2)
+    dstRight = np.float32([ kl2[m[0].trainIdx].pt for m in centerRight ]).reshape(-1,1,2)
 
     hLC, mask = cv.findHomography(srcLeft, dstLeft, cv.RANSAC)
     hRC, mask = cv.findHomography(srcRight, dstRight, cv.RANSAC)
@@ -745,8 +771,8 @@ def genSimplePanorama(center, left, right, canvas):
 def getHomography(img1, img2):
         pairs, k1, k2 = getKeyPoints_Lowe2NN(img1, img2)
         
-        src = np.float32([ k1[m.queryIdx].pt for m in pairs ]).reshape(-1,1,2)
-        dst = np.float32([ k2[m.trainIdx].pt for m in pairs ]).reshape(-1,1,2)
+        src = np.float32([ k1[m[0].queryIdx].pt for m in pairs ]).reshape(-1,1,2)
+        dst = np.float32([ k2[m[0].trainIdx].pt for m in pairs ]).reshape(-1,1,2)
               
         hom, mask = cv.findHomography(src, dst, cv.RANSAC)
         
@@ -801,31 +827,53 @@ def genPanoramaFlat(center, left, right, canvas):
     
 ############### FIN FUNCIONES BONUS 2-1
 
+############################## IMPLEMENTACION EJERCICIOS
 
 #%% EJERCICIO 1
 ###############
 
 yose1 = leeImagen("./imagenes/Yosemite1.jpg", False)
-yose1 = yose1.astype(np.uint8)
+yose2 = leeImagen("./imagenes/Yosemite2.jpg", False)
 
-gaussPyr, DoGPyr = siftDetector(yose1, 3, 3, 1.6)
+gaussPyr1, DoGPyr1 = siftDetector(yose1, 3, 3, 1.6)
+gaussPyr2, DoGPyr2 = siftDetector(yose2, 3, 3, 1.6)
 
-showOctaves(gaussPyr)
+showOctaves(gaussPyr1)
+showOctaves(gaussPyr2)
 
-kpBest, kpBestCV, kpAll, keyOct = getExtrema(DoGPyr)
+kpBest1, kpBestCV1, kpAll1, kpOct1 = getExtrema(DoGPyr1)
+kpBest2, kpBestCV2, kpAll2, kpOct2 = getExtrema(DoGPyr2)
 
-yoseOut = cv.drawKeypoints(yose1, kpBestCV, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-pintaI(yoseOut, "100 keypoints con respuesta más alta")
+yoseOut1 = cv.drawKeypoints(yose1.astype('uint8'), kpBestCV1, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+yoseOut2 = cv.drawKeypoints(yose2.astype('uint8'), kpBestCV2, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
-#%% BONUS 1-1
+pintaI(yoseOut1, "100 Keypoints con mayor respuesta en general")
+pintaI(yoseOut2, "100 Keypoints con mayor respuesta en general")
+
+# BONUS 1-1
 ###############
 
+kpBestOct1, kpCVOct1 = getBestPercentage(kpOct1)
+kpBestOct2, kpCVOct2 = getBestPercentage(kpOct2)
 
-#%% BONUS 1-2
+yoseOutBonus1_1 = cv.drawKeypoints(yose1.astype('uint8'), kpCVOct1, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+yoseOutBonus1_2 = cv.drawKeypoints(yose2.astype('uint8'), kpCVOct2, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+
+pintaI(yoseOutBonus1_1, "100 Keypoints con mayor respuesta por octava")
+pintaI(yoseOutBonus1_2, "100 Keypoints con mayor respuesta por octava")
+
+
+# BONUS 1-2
 ###############
 
-keyIP, keyIPCV = extremaInterpolation(kpBest, DoGPyr)
+keyIP1, keyIPCV1 = extremaInterpolation(kpBest1, DoGPyr1)
+keyIP2, keyIPCV2 = extremaInterpolation(kpBest2, DoGPyr2)
 
+yoseOutBonus2_1 = cv.drawKeypoints(yose1.astype('uint8'), keyIPCV1, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+yoseOutBonus2_2 = cv.drawKeypoints(yose2.astype('uint8'), keyIPCV2, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+
+pintaI(yoseOutBonus2_1, str(len(keyIPCV1)) + " Keypoints con mayor respuesta interpolados")
+pintaI(yoseOutBonus2_2, str(len(keyIPCV2)) + " Keypoints con mayor respuesta interpolados")
 
 
 #%% EJERCICIO 2
@@ -850,15 +898,15 @@ crossPoints = random.sample(bfCrossRes, min(100, len(bfCrossRes)))
 lowePoints = random.sample(bfLoweBest, min(100, len(bfLoweBest)))
 
 # Obteniendo las líneas de colores entre cada imagen dado los keypoints y descriptores.
-bfCrossRes = cv.drawMatches(yose1.astype('uint8'), yose1Keys, yose2.astype('uint8'), yose2Keys, crossPoints, None,flags=2)
-bfLoweRes = cv.drawMatchesKnn(yose1.astype('uint8'), yose1Keys, yose2.astype('uint8'), yose2Keys, lowePoints, None,flags=2)
+bfCrossRes = cv.drawMatches(yose1.astype('uint8'), yose1Keys, yose2.astype('uint8'), yose2Keys, crossPoints, None, flags=2)
+bfLoweRes = cv.drawMatchesKnn(yose1.astype('uint8'), a, yose2.astype('uint8'), b, lowePoints, None, flags=2)
 
 # Pintar las imágenes.
 pintaI(bfCrossRes, "SIFT: Bruteforce + CrossCheck")
 pintaI(bfLoweRes, "SIFT: Lowe-Average-2NN")
 
 #%% EJERCICIO 3
-##############
+###############
     
 left = leeImagen("./imagenes/IMG_20211030_110413_S.jpg", True)
 center = leeImagen("./imagenes/IMG_20211030_110415_S.jpg", True)
@@ -870,6 +918,7 @@ simplePanorama = genSimplePanorama(center, left, right, canvas)
 pintaI(simplePanorama)
 
 #%% BONUS 2-1
+###############
 
 center = leeImagen("./imagenes/IMG_20211030_110420_S.jpg", True)
 
