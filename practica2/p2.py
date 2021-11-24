@@ -10,7 +10,7 @@
     
 [ENGLISH]
 
-    Practice 1: Detecting Relevant Points and Panorama Construction
+    Practice 2: Detecting Relevant Points and Panorama Construction
     Course: Computer Vision
     Author: Valentino Lugli (Github: @RhinoBlindado)
     November 2021
@@ -36,6 +36,8 @@ import math
 import random
 
 from numba import jit
+
+import time
 
 # FUNCIONES AUXILIARES
 # - Provienen de prácticas anteriores.
@@ -541,6 +543,20 @@ def realCoords(i, l, rounding=True):
     return x
 
 
+def innerLoop(octave, keyPLst, keyPerOct, k, l):
+    
+     for i in range(1, octave[k].shape[0] - 1):
+                for j in range(1, octave[k].shape[1] - 1):
+                    # if(isLocalExtrema(i , j, octave[k], octave[k-1], octave[k+1])):
+                    if(octave[k][i][j] == max(octave[k][i][j], octave[k][i-1:i+2, i-1:i+2].max(), octave[k-1][i-1:i+2, i-1:i+2].max(), octave[k+1][i-1:i+2, i-1:i+2].max()) or 
+                       octave[k][i][j] == min(octave[k][i][j], octave[k][i-1:i+2, i-1:i+2].min(), octave[k-1][i-1:i+2, i-1:i+2].min(), octave[k+1][i-1:i+2, i-1:i+2].min())):
+                        #               0, 1, 2     , 3     , 4                      , 5
+                        #               x, y, escala, octava, respuesta              , sigma real
+                        keyPLst.append((i, j, k     , l     , np.abs(octave[k][i][j]), getRealSigma(k, l)))
+                        keyPerOct[l].append((i, j, k     , l     , np.abs(octave[k][i][j]), getRealSigma(k, l)))
+
+
+
 def getExtrema(DoG):
     
     keyPLst = []
@@ -550,6 +566,7 @@ def getExtrema(DoG):
     for l, octave in enumerate(DoG):
         keyPerOct.append([])
         for k in range(1, len(octave)-1):
+            # innerLoop(octave, keyPLst, keyPerOct, k, l)
             for i in range(1, octave[k].shape[0] - 1):
                 for j in range(1, octave[k].shape[1] - 1):
                     if(isLocalExtrema(i , j, octave[k], octave[k-1], octave[k+1])):
@@ -603,6 +620,7 @@ def getBestPercentage(keyPoints):
     sizes = [50, 25, 15, 10]
     keyPerBest = []
     keyCV = []
+    keyOut = []
     
     for i in range(len(keyPoints)):
             keyPoints[i].sort(key=lambda tup: tup[4], reverse=True)
@@ -612,9 +630,9 @@ def getBestPercentage(keyPoints):
     for i in range(len(keyPerBest)):
         for j in range(len(keyPerBest[i])):
                 keyCV.append(cv.KeyPoint(realCoords(keyPerBest[i][j][1], keyPerBest[i][j][3]), realCoords(keyPerBest[i][j][0], keyPerBest[i][j][3]), keyPerBest[i][j][5] * 12))
+                keyOut.append((keyPerBest[i][j][0], keyPerBest[i][j][1], keyPerBest[i][j][2], keyPerBest[i][j][3], keyPerBest[i][j][4], keyPerBest[i][j][5]))
 
-
-    return keyPerBest, keyCV
+    return keyOut, keyCV
 
 ############### FIN FUNCIONES BONUS 1-1
 
@@ -688,6 +706,7 @@ def extremaInterpolation(keyLst, DoG):
             kpInterCV.append(cv.KeyPoint(realValue[2], realValue[1], realValue[0] * 12))
     
     return kpInter, kpInterCV
+
 ############### FIN FUNCIONES BONUS 1-2
 
 ############### FUNCIONES EJERCICIO 2
@@ -741,9 +760,14 @@ def getKeyPoints_Lowe2NN(img1, img2, p_k=2):
 ############### FUNCIONES EJERCICIO 3
 
 def genSimplePanorama(center, left, right, canvas):
+    
+    # Obtener el descriptor y los puntos entre la imagen izquierda y la central.
     leftCenter, k1, k2 = getKeyPoints_Lowe2NN(left, center)
+    # Ídem con la derecha y la central.
     centerRight, kl1, kl2 = getKeyPoints_Lowe2NN(right, center)
 
+
+    # Separar del descriptor los puntos de "fuente" y "destino".
     srcLeft = np.float32([ k1[m[0].queryIdx].pt for m in leftCenter ]).reshape(-1,1,2)
     dstLeft = np.float32([ k2[m[0].trainIdx].pt for m in leftCenter ]).reshape(-1,1,2)
     
@@ -829,53 +853,6 @@ def genPanoramaFlat(center, left, right, canvas):
 
 ############################## IMPLEMENTACION EJERCICIOS
 
-#%% EJERCICIO 1
-###############
-
-yose1 = leeImagen("./imagenes/Yosemite1.jpg", False)
-yose2 = leeImagen("./imagenes/Yosemite2.jpg", False)
-
-gaussPyr1, DoGPyr1 = siftDetector(yose1, 3, 3, 1.6)
-gaussPyr2, DoGPyr2 = siftDetector(yose2, 3, 3, 1.6)
-
-showOctaves(gaussPyr1)
-showOctaves(gaussPyr2)
-
-kpBest1, kpBestCV1, kpAll1, kpOct1 = getExtrema(DoGPyr1)
-kpBest2, kpBestCV2, kpAll2, kpOct2 = getExtrema(DoGPyr2)
-
-yoseOut1 = cv.drawKeypoints(yose1.astype('uint8'), kpBestCV1, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-yoseOut2 = cv.drawKeypoints(yose2.astype('uint8'), kpBestCV2, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-
-pintaI(yoseOut1, "100 Keypoints con mayor respuesta en general")
-pintaI(yoseOut2, "100 Keypoints con mayor respuesta en general")
-
-# BONUS 1-1
-###############
-
-kpBestOct1, kpCVOct1 = getBestPercentage(kpOct1)
-kpBestOct2, kpCVOct2 = getBestPercentage(kpOct2)
-
-yoseOutBonus1_1 = cv.drawKeypoints(yose1.astype('uint8'), kpCVOct1, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-yoseOutBonus1_2 = cv.drawKeypoints(yose2.astype('uint8'), kpCVOct2, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-
-pintaI(yoseOutBonus1_1, "100 Keypoints con mayor respuesta por octava")
-pintaI(yoseOutBonus1_2, "100 Keypoints con mayor respuesta por octava")
-
-
-# BONUS 1-2
-###############
-
-keyIP1, keyIPCV1 = extremaInterpolation(kpBest1, DoGPyr1)
-keyIP2, keyIPCV2 = extremaInterpolation(kpBest2, DoGPyr2)
-
-yoseOutBonus2_1 = cv.drawKeypoints(yose1.astype('uint8'), keyIPCV1, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-yoseOutBonus2_2 = cv.drawKeypoints(yose2.astype('uint8'), keyIPCV2, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-
-pintaI(yoseOutBonus2_1, str(len(keyIPCV1)) + " Keypoints con mayor respuesta interpolados")
-pintaI(yoseOutBonus2_2, str(len(keyIPCV2)) + " Keypoints con mayor respuesta interpolados")
-
-
 #%% EJERCICIO 2
 ###############
 
@@ -942,4 +919,60 @@ canvas = np.zeros((700, 2500))
 panorama = genPanoramaFlat(center, left, right, canvas)
 
 pintaI(panorama)
+
+#%% EJERCICIO 1
+###############
+
+yose1 = leeImagen("./imagenes/Yosemite1.jpg", False)
+yose2 = leeImagen("./imagenes/Yosemite2.jpg", False)
+
+gaussPyr1, DoGPyr1 = siftDetector(yose1, 3, 3, 1.6)
+gaussPyr2, DoGPyr2 = siftDetector(yose2, 3, 3, 1.6)
+
+showOctaves(gaussPyr1)
+showOctaves(gaussPyr2)
+
+# Nota:
+# - Estas dos llamadas se tardan un total de 3 minutos aproximadamente en completarse.
+# - De verdad no pude, no tuve el tiempo de poder implementar la máscara para poder aliviar
+#   un poco la carga, o intentar alguna solución con hebras. Pero aseguro que el código
+#   funciona completamente y sin errores. Lo lamento :c 
+
+kpBest1, kpBestCV1, kpAll1, kpOct1 = getExtrema(DoGPyr1)
+kpBest2, kpBestCV2, kpAll2, kpOct2 = getExtrema(DoGPyr2)
+
+yoseOut1 = cv.drawKeypoints(yose1.astype('uint8'), kpBestCV1, None, flags=4)
+yoseOut2 = cv.drawKeypoints(yose2.astype('uint8'), kpBestCV2, None, flags=4)
+
+pintaI(yoseOut1, "100 Keypoints con mayor respuesta en general")
+pintaI(yoseOut2, "100 Keypoints con mayor respuesta en general")
+
+#%% BONUS 1-1
+###############
+
+kpBestOct1, kpCVOct1 = getBestPercentage(kpOct1)
+kpBestOct2, kpCVOct2 = getBestPercentage(kpOct2)
+
+yoseOutBonus1_1 = cv.drawKeypoints(yose1.astype('uint8'), kpCVOct1, None, flags=4)
+yoseOutBonus1_2 = cv.drawKeypoints(yose2.astype('uint8'), kpCVOct2, None, flags=4)
+
+pintaI(yoseOutBonus1_1, "100 Keypoints con mayor respuesta por octava")
+pintaI(yoseOutBonus1_2, "100 Keypoints con mayor respuesta por octava")
+
+#%% BONUS 1-2
+###############
+
+keyIP1, keyIPCV1 = extremaInterpolation(kpBest1, DoGPyr1)
+keyIP2, keyIPCV2 = extremaInterpolation(kpBest2, DoGPyr2)
+
+yoseOutBonus2_1 = cv.drawKeypoints(yose1.astype('uint8'), kpBestCV1, None, color=(0,0,255), flags=4)
+yoseOutBonus2_1 = cv.drawKeypoints(yoseOutBonus2_1, keyIPCV1, None, color=(0,255,0), flags=4)
+
+yoseOutBonus2_2 = cv.drawKeypoints(yose2.astype('uint8'), kpBestCV2, None, color=(0,0,255), flags=4)
+yoseOutBonus2_2 = cv.drawKeypoints(yoseOutBonus2_2, keyIPCV2, None, color=(0,255,0), flags=4)
+
+pintaI(yoseOutBonus2_1, str(len(keyIPCV1)) + " Keypoints con mayor respuesta interpolados")
+pintaI(yoseOutBonus2_2, str(len(keyIPCV2)) + " Keypoints con mayor respuesta interpolados")
+
+pintaI(yoseOutBonus2_1[265:315,220:270])
 
