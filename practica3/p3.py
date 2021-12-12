@@ -39,7 +39,8 @@ import random
 import tensorflow as tf
 import tensorflow.keras as k
 
-import keras.utils as np_utils
+import tensorflow.keras.utils as np_utils
+
 from keras.models import Sequential
 
 # Importar el conjunto de datos
@@ -48,10 +49,23 @@ from keras.datasets import cifar100
 # Imports para hacer el conjunto de validación
 from keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold
+
+from keras.preprocessing.image import load_img,img_to_array
 
 
 import time
 
+# Importando nombres de las capas por legibilidad
+
+from keras.layers import Conv2D, Dense, MaxPooling2D, Flatten, BatchNormalization, Dropout
+
+# -- Ejercicio 3 --
+# Cosas para ResNet50
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
+
+import os
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 # FUNCIONES AUXILIARES
 
@@ -87,10 +101,11 @@ def cargarImagenes():
   # Transformamos los vectores de clases en matrices. Cada componente se convierte en un vector
   # de ceros con un uno en la componente correspondiente a la clase a la que pertenece la imagen.
   # Este paso es necesario para la clasificación multiclase en keras.
-  y_train = np_utils.to_categorical(y_train, 25)
-  y_test = np_utils.to_categorical(y_test, 25)
+  y_train_v = np_utils.to_categorical(y_train, 25)
+  y_test_v = np_utils.to_categorical(y_test, 25)
   
-  return x_train, y_train, x_test, y_test
+  return x_train, y_train_v, x_test, y_test_v
+
 
 #########################################################################
 ######## FUNCIÓN PARA OBTENER EL ACCURACY DEL CONJUNTO DE TEST ##########
@@ -110,6 +125,7 @@ def calcularAccuracy(labels, preds):
   accuracy = sum(labels == preds)/len(labels)
   
   return accuracy
+
 
 #########################################################################
 ## FUNCIÓN PARA PINTAR LA PÉRDIDA Y EL ACCURACY EN TRAIN Y VALIDACIÓN ###
@@ -138,301 +154,6 @@ def mostrarEvolucion(hist):
   plt.legend(['Training accuracy', 'Validation accuracy'])
   plt.show()
 
-############### FIN FUNCIONES AUXILIARES
-
-############################## FUNCIONES PARA EJERCICIOS 
-
-############### FUNCIONES EJERCICIO 1
-def configCUDA():
-    # Usando CUDA si es posible.
-
-    gpus = tf.config.list_physical_devices('GPU')
-    if gpus:
-      try:
-        # Currently, memory growth needs to be the same across GPUs
-        for gpu in gpus:
-          tf.config.experimental.set_memory_growth(gpu, True)
-        logical_gpus = tf.config.list_logical_devices('GPU')
-        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-      except RuntimeError as e:
-        # Memory growth must be set before GPUs have been initialized
-        print(e)
-        
-        
-def threeFoldCrossVal():
-    pass
-
-############### FIN FUNCIONES EJERCICIO 1
-
-############### FUNCIONES EJERCICIO 2
-# def getNormalizedData(trainImg, trainTag):
-#     dataG = ImageDataGenerator(featurewise_center = True,
-#                                featurewise_std_normalization = True)
-#     dataG.fit(trainImg)
-#     dataG = ImageDataGenerator(validation_split = 0.1)
-    
-#     X_train, X_val, Y_train, Y_val = train_test_split(trainImg, trainTag,
-#                                   test_size=0.1, stratify=trainTag)
-    
-#     it_train = datagen.dataG(X_train , Y_train, batch_size = batch_size)
-#     it_validation = datagen.dataG(X_val , Y_val)
-
-
-
-############### FIN FUNCIONES EJERCICIO 2
-
-
-############################## IMPLEMENTACION EJERCICIOS
-
-#%% EJERCICIO 1
-###############
-
-# - Utilizando CUDA si es posible, se configura para que no use toda la memoria
-# de una vez, sino que vaya añadiendo lo que necesita en el entrenamiento.
-# - Evita errores al momento de ejecutar.
-# - Si se usa CPU, se ignora la función.
-configCUDA()
-
-#########################################################################
-################## DEFINICIÓN DEL MODELO BASENET ########################
-#########################################################################
-
-# A completar
-# 1.- Incluir import del tipo de modelo y capas a usar
-#   Ya incluido en las cabeceras
-
-# 2.- definir model e incluir las capas en él
-model = Sequential(name="initialModel")
-
-#   2.1 - Conv2D:
-#           - 6 canales de salida
-#           - Tamaño de kernel 5
-#           - Usando ReLU (capa 2.2)
-#           - Entrada es una imagen 32x32x3 (RGB), se tiene que indicar
-#           cuando es la primera capa de la red según la documentación.
-#           - La salida tendrá dimensión 28 ya que el filtro no tiene padding.
-model.add(k.layers.Conv2D(6, 5, activation='relu', input_shape = (32, 32, 3)))
-
-#   2.3 - MaxPooling2D
-#           - Kernel de 2x2, reduce la imagen a la mitad, de 28x28 a 14x14
-model.add(k.layers.MaxPooling2D(pool_size=(2,2)))
-
-#   2.4 - Conv2D
-#           - 16 canales de salida
-#           - Tamaño de kernel 5
-#           - Usando ReLU (capa 2.5)
-#           - La salida tendrá dimensión 10 ya que el filtro no tiene padding.
-model.add(k.layers.Conv2D(16, 5, activation="relu"))
-
-#   2.6 - MaxPooling2D
-#           - Kernel de 2x2, reduce la imagen a la mitad, de 10x10 a 5x5
-model.add(k.layers.MaxPooling2D(pool_size=(2,2)))
-
-#   Se aplasta con flatten, para conectarlo con las capas totalmente conectadas.
-model.add(k.layers.Flatten())
-
-#   2.7 - Linear / Dense
-#           - La dimensión de salida será de 50 unidades, que son 50 neuronas.
-#           - Usando ReLU (capa 2.8)
-model.add(k.layers.Dense(50, activation='relu'))
-
-#   2.8 - Linear / Dense
-#           - Se tienen 25 neuronas, o sea que la salida será un vector de 25
-#           unidades.
-model.add(k.layers.Dense(25, activation='softmax'))
-
-#########################################################################
-######### DEFINICIÓN DEL OPTIMIZADOR Y COMPILACIÓN DEL MODELO ###########
-#########################################################################
-
-#%
-# incluir model.compile()
-model.compile(loss = k.losses.categorical_crossentropy,
-              optimizer = 'adam',
-              metrics = ['accuracy'])
-
-#########################################################################
-###################### ENTRENAMIENTO DEL MODELO #########################
-#########################################################################
-
-# Obteniendo las imágenes dada la función proporcionada
-trainImg, trainTag, testImg, testTag = cargarImagenes()
-
-
-#%%
-
-# TAMAÑO DE BATCH
-batchSize = 32
-
-# ÉPOCAS DE ENTRENAMIENTO
-trainEpochs = 50
-
-# Incluir model.fit()
-hist = model.fit(trainImg, trainTag, batch_size=batchSize,
-                 epochs=trainEpochs, validation_split=0.1,
-                 verbose=1)
-# Incluir función que muestre la evolución del entrenamiento y validación
-mostrarEvolucion(hist)
-
-
-#########################################################################
-################ PREDICCIÓN SOBRE EL CONJUNTO DE TEST ###################
-#########################################################################
-
-#Incluir model.evaluate() 
-score = model.evaluate(testImg, testTag, verbose=0)
-#Incluir función que muestre la perdida y accuracy del test
-print("Test loss =", score[0])
-print("Test accuracy=", score[1])
-
-probTag = model.predict(testImg) 
-print('Accuracy de nuestro modelo en test: {}%'.format(calcularAccuracy(probTag, testTag)*100)) #Este valor coincide con score[1]
-
-
-
-#%% EJERCICIO 2
-############### Depende de Ejercicio 1 por los pesos iniciales.
-
-#########################################################################
-########################## MEJORA DEL MODELO ############################
-#########################################################################
-
-# A completar. Tanto la normalización de los datos como el data
-# augmentation debe hacerse con la clase ImageDataGenerator.
-# Se recomienda ir entrenando con cada paso para comprobar
-# en qué grado mejora cada uno de ellos.
-
-augmentedModel = Sequential(name="augmentedModel")
-
-#   2.1 - Conv2D:
-augmentedModel.add(k.layers.Conv2D(128, 3, activation='relu', input_shape = (32, 32, 3)))
-augmentedModel.add(k.layers.Conv2D(128, 3, activation='relu'))
-
-
-#   2.3 - MaxPooling2D
-augmentedModel.add(k.layers.MaxPooling2D(pool_size=(2,2)))
-
-#   2.4 - Conv2D
-augmentedModel.add(k.layers.Conv2D(128, 3, activation="relu"))
-augmentedModel.add(k.layers.Conv2D(64, 3, activation='relu'))
-# augmentedModel.add(k.layers.Conv2D(128, 3, activation='relu'))
-
-
-#   2.6 - MaxPooling2D
-augmentedModel.add(k.layers.MaxPooling2D(pool_size=(2,2)))
-augmentedModel.add(k.layers.Flatten())
-
-#   2.7 - Linear / Dense
-augmentedModel.add(k.layers.Dense(512, activation='relu'))
-augmentedModel.add(k.layers.Dropout(0.5))
-
-
-augmentedModel.add(k.layers.Dense(256, activation='relu'))
-augmentedModel.add(k.layers.Dropout(0.5))
-
-augmentedModel.add(k.layers.Dense(128, activation='relu'))
-augmentedModel.add(k.layers.Dropout(0.5))
-
-#   2.8 - Linear / Dense
-augmentedModel.add(k.layers.Dense(25, activation='softmax'))
-
-
-#########################################################################
-######### DEFINICIÓN DEL OPTIMIZADOR Y COMPILACIÓN DEL MODELO ###########
-#########################################################################
-
-#%
-# incluir model.compile()
-augmentedModel.compile(loss = k.losses.categorical_crossentropy,
-              optimizer = 'adam',
-              metrics = ['accuracy'])
-
-# Utilizando los mismos pesos que en el modelo base.
-
-# augmentedModel.set_weights(weights)
-
-#########################################################################
-###################### ENTRENAMIENTO DEL MODELO #########################
-#########################################################################
-
-#%
-
-
-
-datagen = k.preprocessing.image.ImageDataGenerator(featurewise_center = True, 
-                                                   featurewise_std_normalization = True)
-datagen.fit(trainImg)
-
-
-# TAMAÑO DE BATCH
-batchSize = 32
-
-# ÉPOCAS DE ENTRENAMIENTO
-trainEpochs = 50
-
-
-#%
-# Incluir model.fit()
-hist = augmentedModel.fit(trainImg, trainTag, batch_size=batchSize,
-                 epochs=trainEpochs, validation_split=0.1, verbose=1)
-
-
-# Incluir función que muestre la evolución del entrenamiento y validación
-mostrarEvolucion(hist)
-
-#########################################################################
-################ PREDICCIÓN SOBRE EL CONJUNTO DE TEST ###################
-#########################################################################
-
-#Incluir model.evaluate() 
-score = augmentedModel.evaluate(testImg, testTag, verbose=0)
-#Incluir función que muestre la perdida y accuracy del test
-print("Test loss =", score[0])
-print("Test accuracy=", score[1])
-
-probTag = augmentedModel.predict(testImg) 
-print('Accuracy de nuestro modelo en test: {}%'.format(calcularAccuracy(probTag, testTag)*100)) #Este valor coincide con score[1]
-
-
-
-#%% EJERCICIO 3
-###############
-
-#########################################################################
-################### OBTENER LA BASE DE DATOS ############################
-#########################################################################
-
-# Descargar las imágenes de http://www.vision.caltech.edu/visipedia/CUB-200.html
-# Descomprimir el fichero.
-# Descargar también el fichero list.tar.gz, descomprimirlo y guardar los ficheros
-# test.txt y train.txt dentro de la carpeta de imágenes anterior. Estos 
-# dos ficheros contienen la partición en train y test del conjunto de datos.
-
-#########################################################################
-################ CARGAR LAS LIBRERÍAS NECESARIAS ########################
-#########################################################################
-
-# Terminar de rellenar este bloque con lo que vaya haciendo falta
-
-# Importar librerías necesarias
-import numpy as np
-import keras
-import keras.utils as np_utils
-from keras.preprocessing.image import load_img,img_to_array
-import matplotlib as plt
-
-# Importar el optimizador a usar
-from keras.optimizers import SGD
-
-# Importar modelos y capas específicas que se van a usar
-
-
-# Importar el modelo ResNet50 y su respectiva función de preprocesamiento,
-# que es necesario pasarle a las imágenes para usar este modelo
-
-
-# Importar el optimizador a usar
-from keras.optimizers import SGD
 
 #########################################################################
 ################## FUNCIÓN PARA LEER LAS IMÁGENES #######################
@@ -450,6 +171,7 @@ def leerImagenes(vec_imagenes, path):
                        for img in vec_imagenes])
   return imagenes, clases
 
+
 #########################################################################
 ############# FUNCIÓN PARA CARGAR EL CONJUNTO DE DATOS ##################
 #########################################################################
@@ -465,8 +187,8 @@ def cargarDatos(path):
   test_images = np.loadtxt(path + "/test.txt", dtype = str)
   
   # Leemos las imágenes con la función anterior
-  train, train_clases = leerImagenes(train_images)
-  test, test_clases = leerImagenes(test_images)
+  train, train_clases = leerImagenes(train_images, path)
+  test, test_clases = leerImagenes(test_images, path)
   
   # Pasamos los vectores de las clases a matrices 
   # Para ello, primero pasamos las clases a números enteros
@@ -489,66 +211,400 @@ def cargarDatos(path):
   test_clases = test_clases[test_perm]
   
   return train, train_clases, test, test_clases
+############### FIN FUNCIONES AUXILIARES
+
+############################## FUNCIONES PARA EJERCICIOS 
+
+############### FUNCIONES EJERCICIO 1
+def configCUDA():
+    # Usando CUDA si es posible.
+
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+      try:
+        # Currently, memory growth needs to be the same across GPUs
+        for gpu in gpus:
+          tf.config.experimental.set_memory_growth(gpu, True)
+        logical_gpus = tf.config.list_logical_devices('GPU')
+        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+      except RuntimeError as e:
+        # Memory growth must be set before GPUs have been initialized
+        print(e)
+        
+        
+    
+def getBaseNet():
+    #########################################################################
+    ################## DEFINICIÓN DEL MODELO BASENET ########################
+    #########################################################################
+
+    # Definir model e incluir las capas en él
+    model = Sequential(name="initialModel")
+    
+    #   1 - Conv2D
+    #   2 - ReLU
+    #           - 6 canales de salida
+    #           - Tamaño de kernel 5
+    #           - Entrada es una imagen 32x32x3 (RGB), se tiene que indicar
+    #           cuando es la primera capa de la red según la documentación.
+    #           - La salida tendrá dimensión 28 ya que el filtro no tiene padding.
+    model.add(Conv2D(6, 5, activation='relu', input_shape = (32, 32, 3)))
+    
+    #   3 - MaxPooling2D
+    #           - Kernel de 2x2, reduce la imagen a la mitad, de 28x28 a 14x14
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    
+    #   4 - Conv2D
+    #   5 - ReLU
+    #           - 16 canales de salida
+    #           - Tamaño de kernel 5
+    #           - La salida tendrá dimensión 10 ya que el filtro no tiene padding.
+    model.add(Conv2D(16, 5, activation="relu"))
+    
+    #   6 - MaxPooling2D
+    #           - Kernel de 2x2, reduce la imagen a la mitad, de 10x10 a 5x5
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    
+    #   Se aplasta con flatten, para conectarlo con las capas totalmente conectadas.
+    model.add(Flatten())
+    
+    #   7 - Linear / Dense
+    #   9 - ReLU
+    #           - La dimensión de salida será de 50 unidades, que son 50 neuronas.
+    model.add(Dense(50, activation='relu'))
+    
+    #   9 - Linear / Dense
+    #           - Se tienen 25 neuronas, o sea que la salida será un vector de 25
+    #           unidades.
+    model.add(Dense(25, activation='softmax'))
+    
+    return model
+
+
+def threeFoldCrossVal(model, batchSize, numEpoch, trainImg, trainTag, testImg, testTag):
+    # Merge inputs and targets
+    inputs = np.concatenate((trainImg, testImg), axis=0)
+    targets = np.concatenate((trainTag, testTag), axis=0)
+    
+    # Define the K-fold Cross Validator
+    kfold = KFold(n_splits=3, shuffle=True)
+    
+    # K-fold Cross Validation model evaluation
+    fold_no = 1
+    for train, test in kfold.split(inputs, targets):
+      # Generate a print
+      print('------------------------------------------------------------------------')
+      print(f'Training for fold {fold_no} ...')
+    
+      # Fit data to model
+      history = model.fit(inputs[train],
+                  batch_size=batchSize,
+                  epochs=numEpoch,
+                  verbose=1)
+    
+      # Generate generalization metrics
+      scores = model.evaluate(inputs[test], targets[test], verbose=0)
+      print(f'Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%')
+      # acc_per_fold.append(scores[1] * 100)
+      # loss_per_fold.append(scores[0])
+    
+      # Increase fold number
+      fold_no = fold_no + 1
+
+############### FIN FUNCIONES EJERCICIO 1
+
+############### FUNCIONES EJERCICIO 2
+def getNormalizedData(trainImg, trainTag, batchSize, testImg):
+    dataG = ImageDataGenerator(featurewise_center = True,
+                                featurewise_std_normalization = True,
+                                rotation_range=10, # rotation
+                                width_shift_range=0.2, # horizontal shift
+                                height_shift_range=0.2, # vertical shift
+                                horizontal_flip=True)
+    dataG.fit(trainImg)
+    
+    X_train, X_val, Y_train, Y_val = train_test_split(trainImg, trainTag,
+                                  test_size=0.1, stratify=trainTag)
+    
+    it_train = dataG.flow(X_train , Y_train, batch_size = batchSize)
+    it_validation = dataG.flow(X_val , Y_val)
+
+
+    dataT = ImageDataGenerator(featurewise_center = True,
+                               featurewise_std_normalization = True)
+    
+    dataT.fit(trainImg)
+    dataT.standardize(testImg)
+
+    return it_train, it_validation, testImg
+
+
+def getBaseNetPlusPlus():
+    #########################################################################
+    ########################## MEJORA DEL MODELO ############################
+    #########################################################################
+    
+    # Definir model e incluir las capas en él
+    model = Sequential(name="augmentedModel")
+    
+    # 3º Cambio 6 -> 256
+    model.add(Conv2D(256, 5, activation='relu', input_shape = (32, 32, 3)))
+    model.add(BatchNormalization())                 # 1º Cambio
+    
+    model.add(MaxPooling2D(pool_size=(2,2)))
+
+    # 3º Cambio 16 -> 512
+    model.add(Conv2D(512, 5, activation="relu"))
+    model.add(BatchNormalization())                 # 1º Cambio
+
+    model.add(MaxPooling2D(pool_size=(2,2)))
+
+    model.add(Flatten())
+
+    # 3º Cambio 50 -> 128
+    model.add(Dense(128, activation='relu'))
+    
+    # 4º Cambio
+
+    model.add(Dense(25, activation='softmax'))
+
+    
+    # # A completar. Tanto la normalización de los datos como el data
+    # # augmentation debe hacerse con la clase ImageDataGenerator.
+    # # Se recomienda ir entrenando con cada paso para comprobar
+    # # en qué grado mejora cada uno de ellos.
+    
+    # augmentedModel = Sequential(name="augmentedModel")
+    
+    # augmentedModel.add(Conv2D(32, 5, activation='relu', input_shape = (32, 32, 3)))
+    # # 
+    
+    # augmentedModel.add(MaxPooling2D(pool_size=(2,2)))
+    
+    # augmentedModel.add(Conv2D(16, 5, activation="relu"))
+    
+    # augmentedModel.add(MaxPooling2D(pool_size=(2,2)))
+    
+    # augmentedModel.add(Flatten())
+    # augmentedModel.add(Dense(50, activation='relu'))
+    # # augmentedModel.add(Dropout(0.5))
+    
+    
+    # # augmentedModel.add(Dense(128, activation='relu'))
+    # # augmentedModel.add(Dropout(0.25))
+    
+    # augmentedModel.add(Dense(25, activation='softmax'))
+
+    return model
+
+
+############### FIN FUNCIONES EJERCICIO 2
+
+############################## IMPLEMENTACION EJERCICIOS
+
+#%% CUDA
+
+# Utilizando CUDA si es posible
+# - Se configura para que no use toda la memoria de una vez, sino que vaya 
+# añadiendo lo que necesita en el entrenamiento.
+# - Evita errores al momento de ejecutar.
+
+configCUDA()
+
+#%% EJERCICIO 1
+###############
+
+
+# Obteniendo las imágenes dada la función proporcionada
+trainImg1, trainTag1, testImg1, testTag1 = cargarImagenes()
+
+# Generando el modelo
+baseNet = getBaseNet()
 
 #########################################################################
-######## FUNCIÓN PARA OBTENER EL ACCURACY DEL CONJUNTO DE TEST ##########
+######### DEFINICIÓN DEL OPTIMIZADOR Y COMPILACIÓN DEL MODELO ###########
 #########################################################################
 
-# Esta función devuelve el accuracy de un modelo, definido como el 
-# porcentaje de etiquetas bien predichas frente al total de etiquetas.
-# Como parámetros es necesario pasarle el vector de etiquetas verdaderas
-# y el vector de etiquetas predichas, en el formato de keras (matrices
-# donde cada etiqueta ocupa una fila, con un 1 en la posición de la clase
-# a la que pertenece y 0 en las demás).
-
-def calcularAccuracy(labels, preds):
-  labels = np.argmax(labels, axis = 1)
-  preds = np.argmax(preds, axis = 1)
-  
-  accuracy = sum(labels == preds)/len(labels)
-  
-  return accuracy
+baseNet.compile(loss = k.losses.categorical_crossentropy,
+              optimizer = 'adam',
+              metrics = ['accuracy'])
 
 #########################################################################
-## FUNCIÓN PARA PINTAR LA PÉRDIDA Y EL ACCURACY EN TRAIN Y VALIDACIÓN ###
+###################### ENTRENAMIENTO DEL MODELO #########################
 #########################################################################
 
-# Esta función pinta dos gráficas, una con la evolución de la función
-# de pérdida en el conjunto de train y en el de validación, y otra
-# con la evolución del accuracy en el conjunto de train y en el de
-# validación. Es necesario pasarle como parámetro el historial
-# del entrenamiento del modelo (lo que devuelven las funciones
-# fit() y fit_generator()).
 
-def mostrarEvolucion(hist):
+#%%
 
-  loss = hist.history['loss']
-  val_loss = hist.history['val_loss']
-  plt.plot(loss)
-  plt.plot(val_loss)
-  plt.legend(['Training loss', 'Validation loss'])
-  plt.show()
 
-  acc = hist.history['acc']
-  val_acc = hist.history['val_acc']
-  plt.plot(acc)
-  plt.plot(val_acc)
-  plt.legend(['Training accuracy', 'Validation accuracy'])
-  plt.show()
+datagen = ImageDataGenerator(featurewise_center = True,
+                          featurewise_std_normalization = True,
+                          validation_split = 0.1)
+    
+datagen.fit(trainImg1)
+
+testGen = ImageDataGenerator(featurewise_center = True,
+                          featurewise_std_normalization = True)
+testGen.fit(trainImg1)
+testGen.standardize(testImg1)
+
+# TAMAÑO DE BATCH
+batchSize = 32
+
+# ÉPOCAS DE ENTRENAMIENTO
+trainEpochs = 100
+
+# Incluir model.fit()
+# hist = baseNet.fit(trainImg1, trainTag1, batch_size=batchSize,
+#                  epochs=trainEpochs, validation_split=0.1,
+#                  verbose=1)
+
+hist = baseNet.fit(datagen.flow(trainImg1, 
+                                trainTag1,
+                                batch_size = 32,
+                                subset= 'training'),
+                   epochs = trainEpochs,
+                   validation_data = datagen.flow(trainImg1, 
+                                                  trainTag1,
+                                                  batch_size = 32,
+                                                  subset = 'validation'),
+                   verbose = 0)
+                    
+
+# Incluir función que muestre la evolución del entrenamiento y validación
+mostrarEvolucion(hist)
+
+
+#########################################################################
+################ PREDICCIÓN SOBRE EL CONJUNTO DE TEST ###################
+#########################################################################
+
+#Incluir model.evaluate() 
+score = baseNet.evaluate(testImg1, testTag1, verbose=0)
+#Incluir función que muestre la perdida y accuracy del test
+print("Resultados de Evaluación en Test\n - Loss:", score[0])
+probTag = baseNet.predict(testImg1) 
+print(' - Accuracy: {}%'.format(calcularAccuracy(probTag, testTag1)*100)) #Este valor coincide con score[1]
+
+#%%
+
+# threeFoldCrossVal(model, batchSize, trainEpochs, trainImg1, train, testImg1, test)
+
+
+#%% EJERCICIO 2
+###############
+
+# Obteniendo las imágenes dada la función proporcionada
+trainImg2, trainTag2, testImg2, testTag2 = cargarImagenes()
+
+
+augmentedModel = getBaseNetPlusPlus()
+
+#########################################################################
+######### DEFINICIÓN DEL OPTIMIZADOR Y COMPILACIÓN DEL MODELO ###########
+#########################################################################
+
+#%
+# incluir model.compile()
+augmentedModel.compile(loss = k.losses.categorical_crossentropy,
+              optimizer = 'adam',
+              metrics = ['accuracy'])
+
+
+#########################################################################
+###################### ENTRENAMIENTO DEL MODELO #########################
+#########################################################################
+
+#%
+
+# TAMAÑO DE BATCH
+batchSize = 32
+
+# ÉPOCAS DE ENTRENAMIENTO
+trainEpochs = 100
+
+trainIter, valIter, normTest = getNormalizedData(trainImg2, trainTag2, batchSize, testImg2)
+
+
+# datagen.fit(trainImg1)
+
+# testGen = ImageDataGenerator(featurewise_center = True,
+#                           featurewise_std_normalization = True)
+# testGen.fit(trainImg1)
+# testGen.standardize(testImg1)
+
+# # TAMAÑO DE BATCH
+# batchSize = 32
+
+# # ÉPOCAS DE ENTRENAMIENTO
+# trainEpochs = 100
+
+# # Incluir model.fit()
+# # hist = baseNet.fit(trainImg1, trainTag1, batch_size=batchSize,
+# #                  epochs=trainEpochs, validation_split=0.1,
+# #                  verbose=1)
+
+# hist = baseNet.fit(datagen.flow(trainImg1, 
+#                                 trainTag1,
+#                                 batch_size = 32,
+#                                 subset= 'training'),
+#                    epochs = trainEpochs,
+#                    validation_data = datagen.flow(trainImg1, 
+#                                                   trainTag1,
+#                                                   batch_size = 32,
+#                                                   subset = 'validation'),
+#                    verbose = 0)
+
+#%%
+# Incluir model.fit()
+hist = augmentedModel.fit(trainIter, batch_size=batchSize,
+                 epochs=trainEpochs, validation_data = valIter, verbose=1)
+
+
+# Incluir función que muestre la evolución del entrenamiento y validación
+mostrarEvolucion(hist)
+
+#########################################################################
+################ PREDICCIÓN SOBRE EL CONJUNTO DE TEST ###################
+#########################################################################
+
+#Incluir model.evaluate() 
+score = augmentedModel.evaluate(testImg2, testTag2, verbose=0)
+#Incluir función que muestre la perdida y accuracy del test
+print("Test loss =", score[0])
+print("Test accuracy=", score[1])
+
+probTag2 = augmentedModel.predict(testImg2) 
+print('Accuracy de nuestro modelo en test: {}%'.format(calcularAccuracy(probTag2, testTag2)*100)) #Este valor coincide con score[1]
+
+
+
+#%% EJERCICIO 3
+###############
 
 """## Usar ResNet50 preentrenada en ImageNet como un extractor de características"""
 
 # Definir un objeto de la clase ImageDataGenerator para train y otro para test
 # con sus respectivos argumentos.
-# A completar
 
+trainGenerator = ImageDataGenerator(preprocessing_function = preprocess_input)
+testGenerator = ImageDataGenerator(preprocessing_function = preprocess_input)
 
+trainImg3, trainClass3, testImg3, testClass3 = cargarDatos("./imagenes")
+
+#%%
 # Definir el modelo ResNet50 (preentrenado en ImageNet y sin la última capa).
 # A completar
-restNet  = tf.keras.applications.resnet50.ResNet50(include_top= False)
+resNet  = ResNet50(include_top = False, 
+                   weights = 'imagenet',
+                   pooling = 'avg',
+                   input_shape= (224, 224, 3))
 
 # Extraer las características las imágenes con el modelo anterior.
-# A completar
+
+trainFeatures = resNet.predict(trainGenerator.flow(trainImg3), 
+                                         verbose = 1)
+# testFeatures = resNet.predict(testGenerator.flow(testImg3, batch_size=1, shuffle = False))
 
 # Las características extraídas en el paso anterior van a ser la entrada
 # de un pequeño modelo de dos capas Fully Conected, donde la última será la que 
