@@ -281,6 +281,13 @@ def getBaseNet():
     return model
 
 
+def compileModel(model):
+    
+    model.compile(loss = k.losses.categorical_crossentropy,
+              optimizer = 'adam',
+              metrics = ['accuracy'])
+    
+
 def threeFoldCrossVal(model, batchSize, numEpoch, trainImg, trainTag, testImg, testTag):
     # Merge inputs and targets
     inputs = np.concatenate((trainImg, testImg), axis=0)
@@ -317,10 +324,10 @@ def threeFoldCrossVal(model, batchSize, numEpoch, trainImg, trainTag, testImg, t
 def getNormalizedData(trainImg, trainTag, batchSize, testImg):
     dataG = ImageDataGenerator(featurewise_center = True,
                                 featurewise_std_normalization = True,
-                                rotation_range=10, # rotation
-                                width_shift_range=0.2, # horizontal shift
-                                height_shift_range=0.2, # vertical shift
-                                horizontal_flip=True)
+                                 rotation_range=10, # rotation
+                                 width_shift_range=0.2, # horizontal shift
+                                 height_shift_range=0.2, # vertical shift
+                                 horizontal_flip=True)
     dataG.fit(trainImg)
     
     X_train, X_val, Y_train, Y_val = train_test_split(trainImg, trainTag,
@@ -348,22 +355,29 @@ def getBaseNetPlusPlus():
     model = Sequential(name="augmentedModel")
     
     # 3º Cambio 6 -> 256
-    model.add(Conv2D(256, 5, activation='relu', input_shape = (32, 32, 3)))
+    model.add(Conv2D(128, 3, padding='same', activation='relu', input_shape = (32, 32, 3)))    
+    model.add(BatchNormalization())                 # 1º Cambio
+    model.add(Conv2D(128, 3, activation='relu'))
     model.add(BatchNormalization())                 # 1º Cambio
     
     model.add(MaxPooling2D(pool_size=(2,2)))
 
     # 3º Cambio 16 -> 512
-    model.add(Conv2D(512, 5, activation="relu"))
+    model.add(Conv2D(64, 5, activation="relu"))
     model.add(BatchNormalization())                 # 1º Cambio
 
     model.add(MaxPooling2D(pool_size=(2,2)))
 
     model.add(Flatten())
+    model.add(Dense(256, activation='relu'))
+    model.add(Dropout(0.25))
+
+    model.add(Dense(128, activation='relu'))
+    model.add(Dropout(0.25))
 
     # 3º Cambio 50 -> 128
-    model.add(Dense(128, activation='relu'))
-    
+    model.add(Dense(64, activation='relu'))
+    model.add(Dropout(0.25))
     # 4º Cambio
 
     model.add(Dense(25, activation='softmax'))
@@ -414,7 +428,6 @@ configCUDA()
 #%% EJERCICIO 1
 ###############
 
-
 # Obteniendo las imágenes dada la función proporcionada
 trainImg1, trainTag1, testImg1, testTag1 = cargarImagenes()
 
@@ -425,9 +438,7 @@ baseNet = getBaseNet()
 ######### DEFINICIÓN DEL OPTIMIZADOR Y COMPILACIÓN DEL MODELO ###########
 #########################################################################
 
-baseNet.compile(loss = k.losses.categorical_crossentropy,
-              optimizer = 'adam',
-              metrics = ['accuracy'])
+compileModel(baseNet)
 
 #########################################################################
 ###################### ENTRENAMIENTO DEL MODELO #########################
@@ -468,12 +479,11 @@ hist = baseNet.fit(datagen.flow(trainImg1,
                                                   trainTag1,
                                                   batch_size = 32,
                                                   subset = 'validation'),
-                   verbose = 0)
+                   verbose = 1)
                     
 
 # Incluir función que muestre la evolución del entrenamiento y validación
 mostrarEvolucion(hist)
-
 
 #########################################################################
 ################ PREDICCIÓN SOBRE EL CONJUNTO DE TEST ###################
@@ -486,7 +496,6 @@ print("Resultados de Evaluación en Test\n - Loss:", score[0])
 probTag = baseNet.predict(testImg1) 
 print(' - Accuracy: {}%'.format(calcularAccuracy(probTag, testTag1)*100)) #Este valor coincide con score[1]
 
-#%%
 
 # threeFoldCrossVal(model, batchSize, trainEpochs, trainImg1, train, testImg1, test)
 
@@ -602,9 +611,11 @@ resNet  = ResNet50(include_top = False,
 
 # Extraer las características las imágenes con el modelo anterior.
 
-trainFeatures = resNet.predict(trainGenerator.flow(trainImg3), 
-                                         verbose = 1)
-# testFeatures = resNet.predict(testGenerator.flow(testImg3, batch_size=1, shuffle = False))
+trainFeatures = resNet.predict(trainGenerator.flow(trainImg3, batch_size = 1, shuffle=False), 
+                                                   verbose = 1)
+
+testFeatures = resNet.predict(testGenerator.flow(testImg3, batch_size= 1, shuffle=False), 
+                                                 verbose = 1)
 
 # Las características extraídas en el paso anterior van a ser la entrada
 # de un pequeño modelo de dos capas Fully Conected, donde la última será la que 
@@ -613,7 +624,32 @@ trainFeatures = resNet.predict(trainGenerator.flow(trainImg3),
 # entrenando únicamente las capas añadidas. Definir dicho modelo.
 # A completar: definición del modelo, del optimizador y compilación y
 # entrenamiento del modelo.
+
+#%%
+miniModel = Sequential()
+
+miniModel.add(Dense(1024, activation='relu', input_shape = (2048,)))
+miniModel.add(Dense(512, activation='relu'))
+miniModel.add(Dropout(0.5))
+miniModel.add(Dense(200, activation='softmax'))
+
+miniModel.compile(loss = k.losses.categorical_crossentropy,
+              optimizer = 'adam',
+              metrics = ['accuracy'])
+
+
 # En la función fit() puedes usar el argumento validation_split
+
+hist = miniModel.fit(trainFeatures, trainClass3, batch_size = 32, 
+                     epochs = 100, validation_split=0.1)
+
+
+# Incluir función que muestre la evolución del entrenamiento y validación
+mostrarEvolucion(hist)      
+
+probTag3 = miniModel.predict(testFeatures) 
+print('Accuracy de nuestro modelo en test: {}%'.format(calcularAccuracy(probTag3, testClass3)*100)) #Este valor coincide con score[1]
+
 
 """## Reentrenar ResNet50 (fine tunning)"""
 
